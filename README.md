@@ -25,11 +25,18 @@ Mint is built around a single philosophy: **do less, do it well.**
 
 ## 🚀 Quick Start
 
-```bash
-# Translate a string
-mint "Hello, world!"
+### 1. Set your API key
 
-# Specify a target language
+```bash
+export MINT_GEMINI_API_KEY=your_api_key_here
+```
+
+Get a free API key at [Google AI Studio](https://aistudio.google.com/apikey).
+
+### 2. Translate
+
+```bash
+# Specify a target language (BCP-47 tag)
 mint --to ja "Good morning"
 
 # Pipe from stdin
@@ -38,6 +45,14 @@ echo "The quick brown fox" | mint --to zh-TW
 # Translate a file
 cat document.txt | mint --to fr
 ```
+
+---
+
+## 🔑 Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `MINT_GEMINI_API_KEY` | Google Gemini API key **(required)** |
 
 ---
 
@@ -56,7 +71,8 @@ Mint follows the Unix philosophy — **do one thing, and do it well.**
 
 ## 🗺 Roadmap
 
-- [ ] Multiple LLM backend support (OpenAI, Anthropic, Ollama local models)
+- [x] Gemini LLM backend
+- [ ] Additional LLM backends (OpenAI, Anthropic, Ollama local models)
 - [ ] Automatic source language detection
 - [ ] Batch translation mode
 - [ ] Glossary / custom dictionary support

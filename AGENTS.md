@@ -20,11 +20,17 @@ Run `mise install` to set up the exact toolchain.
 ## Project Layout
 
 ```
-cmd/mint/main.go   # entry point; version & commit injected via ldflags
-bin/mint           # compiled binary (gitignored)
+cmd/mint/main.go              # entry point; cobra root command; viper config wiring
+internal/translator/          # Translator interface (translator.Translator)
+internal/gemini/              # Gemini HTTP client (implements Translator)
+bin/mint                      # compiled binary (gitignored)
 ```
 
-The project is early-stage. All feature code goes in `cmd/mint/` or new packages under the module root (`github.com/min0625/mint`).
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `MINT_GEMINI_API_KEY` | Google Gemini API key (required for translation) |
 
 ## Conventions
 
@@ -37,6 +43,10 @@ The project is early-stage. All feature code goes in `cmd/mint/` or new packages
 
 ## Key Design Decisions
 
-- LLM backend called directly (no intermediate layers).
+- CLI framework: `github.com/spf13/cobra` — root command with `--to <lang>` flag (required).
+- Configuration: `github.com/spf13/viper` — reads env vars with `MINT_` prefix; no config files.
+- LLM backend called directly via raw `net/http` (no SDK); keeps binary minimal.
+- `Translator` interface in `internal/translator/` allows future backends without breaking changes.
 - Target language specified via `--to <lang>` flag (BCP-47 tags, e.g. `zh-TW`, `ja`, `fr`).
-- Planned backends: OpenAI, Anthropic, Ollama (see roadmap in README).
+- Input from positional arg or stdin (auto-detected).
+- Planned additional backends: OpenAI (`MINT_OPENAI_API_KEY`), Anthropic (`MINT_ANTHROPIC_API_KEY`), Ollama (see roadmap in README).
