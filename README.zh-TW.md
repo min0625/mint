@@ -25,11 +25,18 @@ Mint 的設計哲學只有一句話：**做最少的事，做到最好。**
 
 ## 🚀 快速上手
 
-```bash
-# 翻譯一段文字
-mint "Hello, world!"
+### 1. 設定 API 金鑰
 
-# 指定目標語言
+```bash
+export MINT_GEMINI_API_KEY=your_api_key_here
+```
+
+至 [Google AI Studio](https://aistudio.google.com/apikey) 免費申請 API 金鑰。
+
+### 2. 開始翻譯
+
+```bash
+# 指定目標語言（BCP-47 語言標籤）
 mint --to ja "Good morning"
 
 # 從 stdin 管線輸入
@@ -38,6 +45,14 @@ echo "The quick brown fox" | mint --to zh-TW
 # 翻譯整個檔案
 cat document.txt | mint --to fr
 ```
+
+---
+
+## 🔑 環境變數
+
+| 變數 | 說明 |
+|------|------|
+| `MINT_GEMINI_API_KEY` | Google Gemini API 金鑰 **（必填）** |
 
 ---
 
@@ -56,7 +71,8 @@ Mint 遵循 Unix 哲學——**只做一件事，並把它做好。**
 
 ## 🗺 Roadmap
 
-- [ ] 多 LLM 後端支援（OpenAI、Anthropic、Ollama 本地模型）
+- [x] Gemini LLM 後端
+- [ ] 更多 LLM 後端支援（OpenAI、Anthropic、Ollama 本地模型）
 - [ ] 自動語言偵測
 - [ ] 批次翻譯模式
 - [ ] 術語表 / 自訂詞典支援
