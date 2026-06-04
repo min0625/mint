@@ -1,7 +1,7 @@
 // Copyright 2026 The Mint Authors.
 
-// Package gemini provides a Gemini LLM client for text translation.
-package gemini
+// Package ollama provides Ollama local LLM client for text translation.
+package ollama
 
 import (
 	"bytes"
@@ -13,48 +13,33 @@ import (
 	"net/http"
 )
 
-const apiEndpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
-
-// Client is a Gemini API client that implements translator.Translator.
+// Client is an Ollama API client.
 type Client struct {
-	apiKey     string
+	baseURL    string
+	modelName  string
 	httpClient *http.Client
 }
 
-// New creates a new Gemini client with the given API key.
-func New(apiKey string) *Client {
+// New creates a new Ollama client.
+func New(baseURL, modelName string) *Client {
 	return &Client{
-		apiKey:     apiKey,
+		baseURL:    baseURL,
+		modelName:  modelName,
 		httpClient: &http.Client{},
 	}
 }
 
 type requestBody struct {
-	Contents         []content        `json:"contents"`
-	GenerationConfig generationConfig `json:"generationConfig"`
-}
-
-type content struct {
-	Parts []part `json:"parts"`
-}
-
-type part struct {
-	Text string `json:"text"`
-}
-
-type generationConfig struct {
-	Temperature float64 `json:"temperature"`
+	Model  string `json:"model"`
+	Prompt string `json:"prompt"`
+	Stream bool   `json:"stream"`
 }
 
 type responseBody struct {
-	Candidates []candidate `json:"candidates"`
+	Response string `json:"response"`
 }
 
-type candidate struct {
-	Content content `json:"content"`
-}
-
-// Translate calls the Gemini API to translate text into targetLang (BCP-47 tag).
+// Translate calls the Ollama API to translate text into targetLang (BCP-47 tag).
 func (c *Client) Translate(ctx context.Context, text, targetLang string) (string, error) {
 	prompt := fmt.Sprintf(
 		"Translate the following text to %s. Output only the translation, nothing else:\n\n%s",
@@ -62,10 +47,9 @@ func (c *Client) Translate(ctx context.Context, text, targetLang string) (string
 	)
 
 	body := requestBody{
-		Contents: []content{
-			{Parts: []part{{Text: prompt}}},
-		},
-		GenerationConfig: generationConfig{Temperature: 0.3},
+		Model:  c.modelName,
+		Prompt: prompt,
+		Stream: false,
 	}
 
 	jsonBody, err := json.Marshal(body)
@@ -73,7 +57,7 @@ func (c *Client) Translate(ctx context.Context, text, targetLang string) (string
 		return "", fmt.Errorf("marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("%s?key=%s", apiEndpoint, c.apiKey)
+	url := c.baseURL + "/api/generate"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
 	if err != nil {
@@ -99,12 +83,12 @@ func (c *Client) Translate(ctx context.Context, text, targetLang string) (string
 
 	var result responseBody
 	if err := json.Unmarshal(respBytes, &result); err != nil {
-		return "", fmt.Errorf("parse response: %w", err)
+		return "", fmt.Errorf("unmarshal response: %w", err)
 	}
 
-	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
-		return "", errors.New("empty response from Gemini API")
+	if result.Response == "" {
+		return "", errors.New("empty response from Ollama")
 	}
 
-	return result.Candidates[0].Content.Parts[0].Text, nil
+	return result.Response, nil
 }

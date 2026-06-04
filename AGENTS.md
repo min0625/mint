@@ -20,17 +20,31 @@ Run `mise install` to set up the exact toolchain.
 ## Project Layout
 
 ```
-cmd/mint/main.go              # entry point; cobra root command; viper config wiring
-internal/translator/          # Translator interface (translator.Translator)
-internal/gemini/              # Gemini HTTP client (implements Translator)
-bin/mint                      # compiled binary (gitignored)
+cmd/mint/main.go                     # entry point; cobra root command; viper config wiring
+internal/translator/                # Translator interface (translator.Translator)
+internal/provider/
+  config.go                          # Config struct; provider validation
+  provider.go                        # NewTranslator factory function
+  google/google.go                   # Google Gemini HTTP client (implements Translator)
+  openai/openai.go                   # OpenAI GPT HTTP client (implements Translator)
+  anthropic/anthropic.go             # Anthropic Claude HTTP client (implements Translator)
+  ollama/ollama.go                   # Ollama local LLM HTTP client (implements Translator)
+bin/mint                             # compiled binary (gitignored)
 ```
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `MINT_GEMINI_API_KEY` | Google Gemini API key (required for translation) |
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `MINT_PROVIDER` | LLM provider (`google`, `openai`, `anthropic`, `ollama`) | Yes | — |
+| `MINT_API_KEY` | API key for the provider (not required for `ollama`) | Conditional* | — |
+| `MINT_BASE_URL` | Custom API endpoint URL | Optional | provider default |
+| `MINT_MODEL_NAME` | Model name to use | Optional | provider default** |
+| `MINT_PRIMARY_LANGUAGE` | Primary language (BCP-47 tag, e.g. `en`, `zh-TW`, `ja`) | Optional | — |
+| `MINT_SECONDARY_LANGUAGE` | Secondary language for auto-switch | Optional | `zh` |
+
+**Conditional:* Required for `google`, `openai`, `anthropic`; not required for `ollama`.*
+**Default models:* `google`: `gemini-3.1-flash-lite`; `openai`: `gpt-4o-mini`; `anthropic`: `claude-3-haiku-20240307`; `ollama`: none (must be specified).
 
 ## Conventions
 
@@ -43,10 +57,11 @@ bin/mint                      # compiled binary (gitignored)
 
 ## Key Design Decisions
 
-- CLI framework: `github.com/spf13/cobra` — root command with `--to <lang>` flag (required).
+- CLI framework: `github.com/spf13/cobra` — root command with optional `--to <lang>` flag.
 - Configuration: `github.com/spf13/viper` — reads env vars with `MINT_` prefix; no config files.
-- LLM backend called directly via raw `net/http` (no SDK); keeps binary minimal.
-- `Translator` interface in `internal/translator/` allows future backends without breaking changes.
-- Target language specified via `--to <lang>` flag (BCP-47 tags, e.g. `zh-TW`, `ja`, `fr`).
+- LLM backends called directly via raw `net/http` (no heavy SDKs); keeps binary minimal.
+- `Translator` interface in `internal/translator/` allows provider backends without breaking changes.
+- Target language: use `--to <lang>` explicitly, or set `MINT_PRIMARY_LANGUAGE` for smart auto-detection.
+- Smart detection: if `MINT_PRIMARY_LANGUAGE` is set and text is in that language, automatically translate to `MINT_SECONDARY_LANGUAGE`.
 - Input from positional arg or stdin (auto-detected).
 - Planned additional backends: OpenAI (`MINT_OPENAI_API_KEY`), Anthropic (`MINT_ANTHROPIC_API_KEY`), Ollama (see roadmap in README).
