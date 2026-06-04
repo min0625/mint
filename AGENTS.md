@@ -3,6 +3,20 @@
 Mint is a minimalist LLM-powered translation CLI written in Go.
 See [README.md](./README.md) for full project overview.
 
+## Installation
+
+### Quick Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh | bash
+```
+
+Or with `go install` (requires Go 1.21+):
+
+```bash
+go install github.com/min0625/mint/cmd/mint@latest
+```
+
 ## Build & Test Commands
 
 ```bash
