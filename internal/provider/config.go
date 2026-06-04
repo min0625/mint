@@ -70,7 +70,7 @@ func (c *Config) ValidateConfig() error {
 
 	// Set default secondary language
 	if c.SecondaryLanguage == "" {
-		c.SecondaryLanguage = "zh"
+		c.SecondaryLanguage = "en"
 	}
 
 	// Ensure model name is set

@@ -128,7 +128,7 @@ mint "早安"            # 偵測中文 → 翻譯成 en
 | `MINT_BASE_URL` | 自訂 API 端點（例如自架或本地服務） | 否 | 提供商預設 |
 | `MINT_MODEL_NAME` | 指定要使用的 LLM 模型名稱 | 否 | 提供商預設** |
 | `MINT_PRIMARY_LANGUAGE` | 主要語言（BCP-47，如 `en`、`zh-TW`、`ja`） | 否 | — |
-| `MINT_SECONDARY_LANGUAGE` | 次要語言，用於自動偵測切換 | 否 | `zh` |
+| `MINT_SECONDARY_LANGUAGE` | 次要語言，用於自動偵測切換 | 否 | `en` |
 
 **條件式:* `MINT_API_KEY` 對 `google`、`openai`、`anthropic` 必填；`ollama` 不需要。*
 **預設模型:* `google`: `gemini-3.1-flash-lite`，`openai`: `gpt-4o-mini`，`anthropic`: `claude-3-haiku-20240307`；`ollama` 無預設（須指定）。*
