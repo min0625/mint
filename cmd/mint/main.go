@@ -9,8 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/min0625/mint/internal/gemini"
-	"github.com/min0625/mint/internal/translator"
+	"github.com/min0625/mint/internal/provider"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -41,19 +40,55 @@ func newRootCmd() *cobra.Command {
 		Args:         cobra.MaximumNArgs(1),
 		SilenceUsage: true,
 		RunE: func(_ *cobra.Command, args []string) error {
-			apiKey := v.GetString("gemini_api_key")
-			if apiKey == "" {
-				return errors.New("MINT_GEMINI_API_KEY environment variable is not set")
+			// Load configuration from environment variables
+			cfg := provider.Config{
+				Provider:          v.GetString("provider"),
+				APIKey:            v.GetString("api_key"),
+				BaseURL:           v.GetString("base_url"),
+				ModelName:         v.GetString("model_name"),
+				PrimaryLanguage:   v.GetString("primary_language"),
+				SecondaryLanguage: v.GetString("secondary_language"),
 			}
 
+			// Create translator
+			t, err := provider.NewTranslator(context.Background(), cfg)
+			if err != nil {
+				return err
+			}
+
+			// Get input text
 			text, err := resolveInput(args)
 			if err != nil {
 				return err
 			}
 
-			var t translator.Translator = gemini.New(apiKey)
+			// Determine target language
+			targetLang := toLang
+			if targetLang == "" {
+				if cfg.PrimaryLanguage == "" {
+					return errors.New("--to flag is required or MINT_PRIMARY_LANGUAGE environment variable must be set")
+				}
+				// Use smart language detection
+				primaryLang := strings.ToLower(cfg.PrimaryLanguage)
 
-			result, err := t.Translate(context.Background(), text, toLang)
+				secondaryLang := cfg.SecondaryLanguage
+				if secondaryLang == "" {
+					secondaryLang = "zh"
+				}
+
+				prompt := fmt.Sprintf(
+					"Detect the language of the following text.\n"+
+						"If it is already %s, translate it to %s.\n"+
+						"Otherwise, translate it to %s.\n"+
+						"Output only the translation, nothing else.\n\n%s",
+					primaryLang, secondaryLang, primaryLang, text,
+				)
+				text = prompt
+				targetLang = primaryLang // Use primary language as fallback indicator
+			}
+
+			// Perform translation
+			result, err := t.Translate(context.Background(), text, targetLang)
 			if err != nil {
 				return fmt.Errorf("translation failed: %w", err)
 			}
@@ -65,7 +100,6 @@ func newRootCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&toLang, "to", "", "target language (BCP-47 tag, e.g. ja, zh-TW, fr)")
-	_ = cmd.MarkFlagRequired("to")
 
 	return cmd
 }

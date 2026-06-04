@@ -7,7 +7,8 @@
 ---
 
 Mint is a lightweight, LLM-powered translation tool for the command line.
-No complex setup, no cluttered interface — just one command, and you get fluent, natural translations instantly.
+Choose your favorite LLM provider (Google Gemini, OpenAI, Anthropic, or local Ollama),
+and get fluent, natural translations instantly with optional smart language detection.
 
 ---
 
@@ -18,22 +19,38 @@ Mint is built around a single philosophy: **do less, do it well.**
 
 - **Minimal** — One command, no noise
 - **Fast** — Calls the LLM API directly, no intermediate layers
+- **Multi-provider** — Choose between Google Gemini, OpenAI, Anthropic, or local Ollama models
 - **Flexible** — Supports any language pair, freely specify your target language
+- **Smart detection** — Optionally detect input language and auto-translate to your preference
 - **Composable** — Pipe-friendly stdin/stdout design, fits naturally into any workflow
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Set your API key
+### 1. Choose your provider
 
 ```bash
-export MINT_GEMINI_API_KEY=your_api_key_here
+# Google Gemini (free tier available)
+export MINT_PROVIDER=google
+export MINT_API_KEY=your_gemini_api_key
+# Get a free API key at: https://aistudio.google.com/apikey
+
+# OpenAI
+export MINT_PROVIDER=openai
+export MINT_API_KEY=sk-...
+
+# Anthropic
+export MINT_PROVIDER=anthropic
+export MINT_API_KEY=sk-ant-...
+
+# Local Ollama (no API key needed)
+export MINT_PROVIDER=ollama
+export MINT_BASE_URL=http://localhost:11434
+export MINT_MODEL_NAME=llama2
 ```
 
-Get a free API key at [Google AI Studio](https://aistudio.google.com/apikey).
-
-### 2. Translate
+### 2. Translate with explicit target language
 
 ```bash
 # Specify a target language (BCP-47 tag)
@@ -46,13 +63,34 @@ echo "The quick brown fox" | mint --to zh-TW
 cat document.txt | mint --to fr
 ```
 
+### 3. Smart language detection (optional)
+
+Set your primary language to enable automatic detection:
+
+```bash
+export MINT_PRIMARY_LANGUAGE=en
+export MINT_SECONDARY_LANGUAGE=zh-TW
+
+# Now you can omit --to flag
+mint "Good morning"    # Detects English → translates to zh-TW
+mint "早安"            # Detects Chinese → translates to en
+```
+
 ---
 
 ## 🔑 Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `MINT_GEMINI_API_KEY` | Google Gemini API key **(required)** |
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `MINT_PROVIDER` | LLM provider: `google`, `openai`, `anthropic`, `ollama` | Yes | — |
+| `MINT_API_KEY` | API key for the chosen provider | Conditional* | — |
+| `MINT_BASE_URL` | Custom API endpoint (e.g., for self-hosted or local services) | Optional | Provider default |
+| `MINT_MODEL_NAME` | LLM model name to use | Optional | Provider default** |
+| `MINT_PRIMARY_LANGUAGE` | Primary language (BCP-47, e.g. `en`, `zh-TW`, `ja`) | Optional | — |
+| `MINT_SECONDARY_LANGUAGE` | Secondary language for auto-detection swap | Optional | `zh` |
+
+**Conditional:* `MINT_API_KEY` required for `google`, `openai`, `anthropic`; not needed for `ollama`.*
+**Default models:* `google`: `gemini-3.1-flash-lite`, `openai`: `gpt-4o-mini`, `anthropic`: `claude-3-haiku-20240307`; `ollama`: none (must specify).*
 
 ---
 
@@ -63,6 +101,7 @@ Mint follows the Unix philosophy — **do one thing, and do it well.**
 | Principle | Description |
 |-----------|-------------|
 | Zero-dependency install | Single binary, works out of the box |
+| Multi-provider | Supports major LLM services plus local alternatives |
 | Composability | Pairs seamlessly with `grep`, `sed`, `xargs`, and friends |
 | Transparent output | Results go to stdout, errors go to stderr |
 | Environment-friendly | API keys managed via environment variables, no config file pollution |
@@ -71,12 +110,13 @@ Mint follows the Unix philosophy — **do one thing, and do it well.**
 
 ## 🗺 Roadmap
 
-- [x] Gemini LLM backend
-- [ ] Additional LLM backends (OpenAI, Anthropic, Ollama local models)
-- [ ] Automatic source language detection
+- [x] Multi-LLM provider support (Google Gemini, OpenAI, Anthropic, Ollama)
+- [x] Automatic source language detection with smart swapping
+- [x] Optional `--to` flag when `MINT_PRIMARY_LANGUAGE` is set
 - [ ] Batch translation mode
 - [ ] Glossary / custom dictionary support
 - [ ] Output format options (plain text, JSON, Markdown)
+- [ ] Caching for repeated translations
 
 ---
 
