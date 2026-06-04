@@ -33,6 +33,7 @@ go.work.sum
 
 # Output of go build
 bin/
+dist/
 
 # Local configuration files
 *.local.*

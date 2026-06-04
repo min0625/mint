@@ -12,9 +12,10 @@ make lint         # golangci-lint (only new violations since HEAD)
 make fix          # golangci-lint --fix + go mod tidy
 make check        # check-tidy + lint + test (CI gate)
 make check-tidy   # verify go.mod/go.sum are tidy
+make release-snapshot  # goreleaser release --snapshot --clean (test release locally)
 ```
 
-Tool versions are pinned in [mise.toml](./mise.toml) (Go 1.26.4, golangci-lint 2.12.2).
+Tool versions are pinned in [mise.toml](./mise.toml) (Go 1.26.4, golangci-lint 2.12.2, goreleaser 2.16.0).
 Run `mise install` to set up the exact toolchain.
 
 ## Project Layout
@@ -30,6 +31,8 @@ internal/provider/
   anthropic/anthropic.go             # Anthropic Claude HTTP client (implements Translator)
   ollama/ollama.go                   # Ollama local LLM HTTP client (implements Translator)
 bin/mint                             # compiled binary (gitignored)
+.goreleaser.yaml                     # GoReleaser multi-platform release configuration
+.github/workflows/release.yml        # GitHub Actions: triggered on v*.*.* tag push
 ```
 
 ## Environment Variables
@@ -54,6 +57,8 @@ bin/mint                             # compiled binary (gitignored)
 - **Unix philosophy** — do one thing well; composable with `grep`, `sed`, `xargs`, etc.
 - **No unnecessary dependencies** — keep `go.mod` minimal.
 - Lint is checked only for *new* violations (`--new-from-rev=HEAD`); always run `make lint` before committing.
+- **Release workflow** — push a tag matching `v*.*.*` to automatically trigger GoReleaser CI; creates GitHub Release with multi-platform binaries.
+- **Local snapshot testing** — run `goreleaser release --snapshot --clean` to validate build configuration before publishing.
 
 ## Key Design Decisions
 
