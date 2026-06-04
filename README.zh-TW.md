@@ -26,7 +26,21 @@ Mint 的設計哲學只有一句話：**做最少的事，做到最好。**
 
 ---
 
-## � 安裝
+## 📋 安裝
+### 自動安裝（單行指令）
+
+最簡單的安裝方式——自動下載最新的二進位檔：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh | bash
+```
+
+功能特性：
+- 自動偵測您的作業系統和架構（Linux/macOS、x86_64/arm64）
+- 驗證 SHA256 校驗和
+- 預設安裝到 `~/.local/bin`（可透過 `MINT_INSTALL_DIR` 覆蓋）
+- 在需要時顯示 PATH 設定提示
+- 支援指定特定版本：`MINT_VERSION=v1.0.0 bash script/install.sh`
 
 ### go install
 
@@ -67,7 +81,7 @@ mint --version
 
 ---
 
-## �🚀 快速上手
+## 🚀 快速上手
 
 ### 1. 選擇 LLM 提供商
 

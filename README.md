@@ -26,7 +26,21 @@ Mint is built around a single philosophy: **do less, do it well.**
 
 ---
 
-## � Installation
+## 📋 Installation
+### Automated Install (One-liner)
+
+The easiest way to install — downloads the latest binary automatically:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh | bash
+```
+
+Features:
+- Detects your OS and architecture automatically (Linux/macOS, x86_64/arm64)
+- Verifies SHA256 checksums
+- Installs to `~/.local/bin` by default (override with `MINT_INSTALL_DIR`)
+- Shows PATH setup hints if needed
+- Supports pinning a specific version: `MINT_VERSION=v1.0.0 bash script/install.sh`
 
 ### go install
 
@@ -67,7 +81,7 @@ mint --version
 
 ---
 
-## �🚀 Quick Start
+## 🚀 Quick Start
 
 ### 1. Choose your provider
 
