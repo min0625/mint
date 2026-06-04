@@ -44,7 +44,7 @@ bin/mint                             # compiled binary (gitignored)
 | `MINT_BASE_URL` | Custom API endpoint URL | Optional | provider default |
 | `MINT_MODEL_NAME` | Model name to use | Optional | provider default** |
 | `MINT_PRIMARY_LANGUAGE` | Primary language (BCP-47 tag, e.g. `en`, `zh-TW`, `ja`) | Optional | — |
-| `MINT_SECONDARY_LANGUAGE` | Secondary language for auto-switch | Optional | `zh` |
+| `MINT_SECONDARY_LANGUAGE` | Secondary language for auto-switch | Optional | `en` |
 
 **Conditional:* Required for `google`, `openai`, `anthropic`; not required for `ollama`.*
 **Default models:* `google`: `gemini-3.1-flash-lite`; `openai`: `gpt-4o-mini`; `anthropic`: `claude-3-haiku-20240307`; `ollama`: none (must be specified).

@@ -16,7 +16,7 @@ import (
 
 var (
 	version = "dev"
-	commit  = ""
+	commit  = "unknown"
 )
 
 func main() {
@@ -73,7 +73,7 @@ func newRootCmd() *cobra.Command {
 
 				secondaryLang := cfg.SecondaryLanguage
 				if secondaryLang == "" {
-					secondaryLang = "zh"
+					secondaryLang = "en"
 				}
 
 				prompt := fmt.Sprintf(

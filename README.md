@@ -128,7 +128,7 @@ mint "早安"            # Detects Chinese → translates to en
 | `MINT_BASE_URL` | Custom API endpoint (e.g., for self-hosted or local services) | Optional | Provider default |
 | `MINT_MODEL_NAME` | LLM model name to use | Optional | Provider default** |
 | `MINT_PRIMARY_LANGUAGE` | Primary language (BCP-47, e.g. `en`, `zh-TW`, `ja`) | Optional | — |
-| `MINT_SECONDARY_LANGUAGE` | Secondary language for auto-detection swap | Optional | `zh` |
+| `MINT_SECONDARY_LANGUAGE` | Secondary language for auto-detection swap | Optional | `en` |
 
 **Conditional:* `MINT_API_KEY` required for `google`, `openai`, `anthropic`; not needed for `ollama`.*
 **Default models:* `google`: `gemini-3.1-flash-lite`, `openai`: `gpt-4o-mini`, `anthropic`: `claude-3-haiku-20240307`; `ollama`: none (must specify).*
