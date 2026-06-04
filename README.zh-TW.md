@@ -26,7 +26,48 @@ Mint 的設計哲學只有一句話：**做最少的事，做到最好。**
 
 ---
 
-## 🚀 快速上手
+## � 安裝
+
+### go install
+
+如果已安裝 Go 1.21+：
+
+```bash
+go install github.com/min0625/mint/cmd/mint@latest
+```
+
+二進位檔會被放在 `$GOPATH/bin` 目錄中（通常是 `~/go/bin`）。
+
+### 從 GitHub Releases 手動下載
+
+直接從 [GitHub Releases](https://github.com/min0625/mint/releases) 下載預編譯的二進位檔：
+
+```bash
+# Linux x86_64
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_Linux_x86_64.tar.gz \
+  | tar xz && sudo mv mint /usr/local/bin/
+
+# macOS arm64 (Apple Silicon)
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_Darwin_arm64.tar.gz \
+  | tar xz && sudo mv mint /usr/local/bin/
+
+# macOS x86_64 (Intel)
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_Darwin_x86_64.tar.gz \
+  | tar xz && sudo mv mint /usr/local/bin/
+
+# Windows x86_64 (PowerShell)
+# 從 releases 頁面下載 mint_Windows_x86_64.zip 並解壓縮到 PATH 中的目錄
+```
+
+### 驗證安裝
+
+```bash
+mint --version
+```
+
+---
+
+## �🚀 快速上手
 
 ### 1. 選擇 LLM 提供商
 
@@ -113,6 +154,7 @@ Mint 遵循 Unix 哲學——**只做一件事，並把它做好。**
 - [x] 多 LLM 提供商支援（Google Gemini、OpenAI、Anthropic、Ollama）
 - [x] 自動語言偵測與智慧切換
 - [x] 設定 `MINT_PRIMARY_LANGUAGE` 後 `--to` 參數可選
+- [x] GoReleaser 多平台二進位檔發布（Linux / macOS / Windows）
 - [ ] 批次翻譯模式
 - [ ] 術語表 / 自訂詞典支援
 - [ ] 輸出格式選項（純文字、JSON、Markdown）

@@ -31,3 +31,7 @@ check-tidy:
 
 .PHONY: check
 check: check-tidy lint test
+
+.PHONY: release-snapshot
+release-snapshot:
+	goreleaser release --snapshot --clean

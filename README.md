@@ -26,7 +26,48 @@ Mint is built around a single philosophy: **do less, do it well.**
 
 ---
 
-## 🚀 Quick Start
+## � Installation
+
+### go install
+
+If you have Go 1.21+ installed:
+
+```bash
+go install github.com/min0625/mint/cmd/mint@latest
+```
+
+The binary will be available as `mint` in your `$GOPATH/bin` directory (usually `~/go/bin`).
+
+### Manual Download from GitHub Releases
+
+Download pre-built binaries directly from [GitHub Releases](https://github.com/min0625/mint/releases):
+
+```bash
+# Linux x86_64
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_Linux_x86_64.tar.gz \
+  | tar xz && sudo mv mint /usr/local/bin/
+
+# macOS arm64 (Apple Silicon)
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_Darwin_arm64.tar.gz \
+  | tar xz && sudo mv mint /usr/local/bin/
+
+# macOS x86_64 (Intel)
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_Darwin_x86_64.tar.gz \
+  | tar xz && sudo mv mint /usr/local/bin/
+
+# Windows x86_64 (PowerShell)
+# Download mint_Windows_x86_64.zip from releases page and extract to a directory in your PATH
+```
+
+### Verify Installation
+
+```bash
+mint --version
+```
+
+---
+
+## �🚀 Quick Start
 
 ### 1. Choose your provider
 
@@ -113,6 +154,7 @@ Mint follows the Unix philosophy — **do one thing, and do it well.**
 - [x] Multi-LLM provider support (Google Gemini, OpenAI, Anthropic, Ollama)
 - [x] Automatic source language detection with smart swapping
 - [x] Optional `--to` flag when `MINT_PRIMARY_LANGUAGE` is set
+- [x] GoReleaser multi-platform binary release (Linux / macOS / Windows)
 - [ ] Batch translation mode
 - [ ] Glossary / custom dictionary support
 - [ ] Output format options (plain text, JSON, Markdown)
