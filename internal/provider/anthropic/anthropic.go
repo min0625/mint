@@ -15,7 +15,7 @@ import (
 
 const (
 	defaultAPIEndpoint = "https://api.anthropic.com/v1/messages"
-	anthropicVersion   = "2024-06-01"
+	anthropicVersion   = "2023-06-01"
 )
 
 // Client is an Anthropic Claude API client.
@@ -29,7 +29,7 @@ type Client struct {
 // New creates a new Anthropic client.
 func New(apiKey, baseURL, modelName string) *Client {
 	if modelName == "" {
-		modelName = "claude-3-haiku-20240307"
+		modelName = "claude-haiku-4-5"
 	}
 
 	if baseURL == "" {
