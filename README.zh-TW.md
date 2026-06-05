@@ -223,4 +223,4 @@ Mint 遵循 Unix 哲學——**只做一件事，並把它做好。**
 
 ## 📄 License
 
-Apache License 2.0 — 詳見 [LICENSE](./LICENSE) 文件。
+Apache License 2.0 — 詳見 [LICENSE](https://github.com/min0625/mint/blob/main/LICENSE) 文件。
