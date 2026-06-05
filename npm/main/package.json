@@ -13,11 +13,11 @@
     "mint": "bin/mint"
   },
   "optionalDependencies": {
-    "@min0625/mint-ai-linux-x64":     "0.0.0",
-    "@min0625/mint-ai-linux-arm64":   "0.0.0",
-    "@min0625/mint-ai-darwin-x64":    "0.0.0",
-    "@min0625/mint-ai-darwin-arm64":  "0.0.0",
-    "@min0625/mint-ai-windows-x64":   "0.0.0",
-    "@min0625/mint-ai-windows-arm64": "0.0.0"
+    "mint-ai-linux-x64":     "0.0.0",
+    "mint-ai-linux-arm64":   "0.0.0",
+    "mint-ai-darwin-x64":    "0.0.0",
+    "mint-ai-darwin-arm64":  "0.0.0",
+    "mint-ai-windows-x64":   "0.0.0",
+    "mint-ai-windows-arm64": "0.0.0"
   }
 }

@@ -4,12 +4,12 @@ const { existsSync } = require("fs");
 const { join } = require("path");
 
 const PLATFORM_MAP = {
-  "linux-x64":    "@min0625/mint-ai-linux-x64",
-  "linux-arm64":  "@min0625/mint-ai-linux-arm64",
-  "darwin-x64":   "@min0625/mint-ai-darwin-x64",
-  "darwin-arm64": "@min0625/mint-ai-darwin-arm64",
-  "win32-x64":    "@min0625/mint-ai-windows-x64",
-  "win32-arm64":  "@min0625/mint-ai-windows-arm64",
+  "linux-x64":    "mint-ai-linux-x64",
+  "linux-arm64":  "mint-ai-linux-arm64",
+  "darwin-x64":   "mint-ai-darwin-x64",
+  "darwin-arm64": "mint-ai-darwin-arm64",
+  "win32-x64":    "mint-ai-windows-x64",
+  "win32-arm64":  "mint-ai-windows-arm64",
 };
 
 function getBinaryPath() {
