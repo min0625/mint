@@ -11,10 +11,10 @@ import (
 
 // Provider constants.
 const (
-	ProviderGoogle    = "google"
-	ProviderOpenAI    = "openai"
-	ProviderAnthropic = "anthropic"
-	ProviderOllama    = "ollama"
+	ProviderGoogleGenAI = "google-genai"
+	ProviderOpenAI      = "openai"
+	ProviderAnthropic   = "anthropic"
+	ProviderOllama      = "ollama"
 )
 
 // Config holds provider configuration loaded from environment variables.
@@ -36,16 +36,16 @@ func (c *Config) ValidateConfig() error {
 
 	// Validate provider
 	validProviders := map[string]bool{
-		ProviderGoogle:    true,
-		ProviderOpenAI:    true,
-		ProviderAnthropic: true,
-		ProviderOllama:    true,
+		ProviderGoogleGenAI: true,
+		ProviderOpenAI:      true,
+		ProviderAnthropic:   true,
+		ProviderOllama:      true,
 	}
 	if !validProviders[c.Provider] {
 		return fmt.Errorf(
 			"unsupported provider: %s. Supported: %s, %s, %s, %s",
 			c.Provider,
-			ProviderGoogle,
+			ProviderGoogleGenAI,
 			ProviderOpenAI,
 			ProviderAnthropic,
 			ProviderOllama,

@@ -87,7 +87,7 @@ mint --version
 
 ```bash
 # Google Gemini (free tier available)
-export MINT_PROVIDER=google
+export MINT_PROVIDER=google-genai
 export MINT_API_KEY=your_gemini_api_key
 # Get a free API key at: https://aistudio.google.com/apikey
 
@@ -145,14 +145,14 @@ The tool automatically detects the input language and applies the appropriate tr
 
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
-| `MINT_PROVIDER` | LLM provider: `google`, `openai`, `anthropic`, `ollama` | Yes | — |
+| `MINT_PROVIDER` | LLM provider: `google-genai`, `openai`, `anthropic`, `ollama` | Yes | — |
 | `MINT_API_KEY` | API key for the chosen provider | Conditional* | — |
 | `MINT_BASE_URL` | Custom API endpoint; required for `ollama` (e.g., for self-hosted or local services) | Conditional* | Provider default |
 | `MINT_MODEL_NAME` | LLM model name to use | Optional | Provider default** |
 | `MINT_TARGET_LANG` | Target language(s) - single or comma-separated (e.g. `en`, `en,zh-TW,ja`) | Optional | System locale or `en` |
 
-**Conditional:* `MINT_API_KEY` required for `google`, `openai`, `anthropic`; not needed for `ollama`. `MINT_BASE_URL` required for `ollama`.*
-**Default models:* `google`: `gemini-3.1-flash-lite`, `openai`: `gpt-4o-mini`, `anthropic`: `claude-haiku-4-5`; `ollama`: none (must specify).*
+**Conditional:* `MINT_API_KEY` required for `google-genai`, `openai`, `anthropic`; not needed for `ollama`. `MINT_BASE_URL` required for `ollama`.*
+**Default models:* `google-genai`: `gemini-3.1-flash-lite`, `openai`: `gpt-4o-mini`, `anthropic`: `claude-haiku-4-5`; `ollama`: none (must specify).*
 
 ### Language Resolution Priority
 

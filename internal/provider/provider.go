@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/min0625/mint/internal/provider/anthropic"
-	"github.com/min0625/mint/internal/provider/google"
+	"github.com/min0625/mint/internal/provider/googlegenai"
 	"github.com/min0625/mint/internal/provider/ollama"
 	"github.com/min0625/mint/internal/provider/openai"
 	"github.com/min0625/mint/internal/translator"
@@ -20,8 +20,8 @@ func NewTranslator(_ context.Context, cfg Config) (translator.Translator, error)
 	}
 
 	switch cfg.Provider {
-	case ProviderGoogle:
-		return google.New(cfg.APIKey, cfg.ModelName), nil
+	case ProviderGoogleGenAI:
+		return googlegenai.New(cfg.APIKey, cfg.ModelName), nil
 	case ProviderOpenAI:
 		return openai.New(cfg.APIKey, cfg.BaseURL, cfg.ModelName), nil
 	case ProviderAnthropic:
