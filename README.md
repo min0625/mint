@@ -32,7 +32,7 @@ Mint is built around a single philosophy: **do less, do it well.**
 The easiest way to install — downloads the latest binary automatically:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh | bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"
 ```
 
 Features:
