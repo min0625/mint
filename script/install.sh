@@ -4,7 +4,7 @@ set -euo pipefail
 
 # =============================================================================
 # mint installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh | bash
 # =============================================================================
 
 REPO="min0625/mint"
@@ -39,8 +39,8 @@ detect_os() {
     local os
     os="$(uname -s)"
     case "${os}" in
-        Linux*) echo "Linux" ;;
-        Darwin*) echo "Darwin" ;;
+        Linux*) echo "linux" ;;
+        Darwin*) echo "darwin" ;;
         *)    error "Unsupported OS: ${os}" ;;
     esac
 }
@@ -50,7 +50,7 @@ detect_arch() {
     local arch
     arch="$(uname -m)"
     case "${arch}" in
-        x86_64 | amd64) echo "x86_64" ;;
+        x86_64 | amd64) echo "amd64" ;;
         arm64 | aarch64) echo "arm64" ;;
         *)            error "Unsupported architecture: ${arch}" ;;
     esac
@@ -139,8 +139,8 @@ main() {
         [[ -z "${version}" ]] && error "Could not determine latest version. Set MINT_VERSION manually."
     fi
 
-    # goreleaser default archive name: mint_0.0.0-alpha.1_Linux_x86_64.tar.gz
-    archive="${BINARY}_${version#v}_${os}_${arch}.tar.gz"
+    # goreleaser archive name: mint_linux_amd64.tar.gz
+    archive="${BINARY}_${os}_${arch}.tar.gz"
     download_url="https://github.com/${REPO}/releases/download/${version}/${archive}"
     checksum_url="https://github.com/${REPO}/releases/download/${version}/checksums.txt"
 
