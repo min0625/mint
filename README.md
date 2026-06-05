@@ -108,28 +108,36 @@ export MINT_MODEL_NAME=llama2
 ### 2. Translate with explicit target language
 
 ```bash
-# Specify a target language (BCP-47 tag)
-mint --to ja "Good morning"
+# Specify a target language (BCP-47 tag) using --target or -t flag
+mint --target ja "Good morning"
+mint -t zh-TW "Good morning"
 
 # Pipe from stdin
-echo "The quick brown fox" | mint --to zh-TW
+echo "The quick brown fox" | mint -t fr
 
 # Translate a file
-cat document.txt | mint --to fr
+cat document.txt | mint -t zh-TW
 ```
 
 ### 3. Smart language detection (optional)
 
-Set your primary language to enable automatic detection:
+Set your target language preference using `MINT_TARGET_LANG`:
 
 ```bash
-export MINT_PRIMARY_LANGUAGE=en
-export MINT_SECONDARY_LANGUAGE=zh-TW
-
-# Now you can omit --to flag
+# Single target language
+export MINT_TARGET_LANG=zh-TW
 mint "Good morning"    # Detects English → translates to zh-TW
-mint "早安"            # Detects Chinese → translates to en
+mint "早安"            # Detects Chinese → grammar & spelling correction
+
+# Multiple target languages (language rotation)
+export MINT_TARGET_LANG=en,zh-TW,ja
+
+mint "Hello"           # English input → translates to zh-TW (next in rotation)
+mint "你好"            # Chinese input → translates to ja (next in rotation)
+mint "こんにちは"     # Japanese input → translates to en (wraps around)
 ```
+
+The tool automatically detects the input language and applies the appropriate transformation.
 
 ---
 
@@ -139,13 +147,21 @@ mint "早安"            # Detects Chinese → translates to en
 |----------|-------------|----------|---------|
 | `MINT_PROVIDER` | LLM provider: `google`, `openai`, `anthropic`, `ollama` | Yes | — |
 | `MINT_API_KEY` | API key for the chosen provider | Conditional* | — |
-| `MINT_BASE_URL` | Custom API endpoint (e.g., for self-hosted or local services) | Optional | Provider default |
+| `MINT_BASE_URL` | Custom API endpoint; required for `ollama` (e.g., for self-hosted or local services) | Conditional* | Provider default |
 | `MINT_MODEL_NAME` | LLM model name to use | Optional | Provider default** |
-| `MINT_PRIMARY_LANGUAGE` | Primary language (BCP-47, e.g. `en`, `zh-TW`, `ja`) | Optional | — |
-| `MINT_SECONDARY_LANGUAGE` | Secondary language for auto-detection swap | Optional | `en` |
+| `MINT_TARGET_LANG` | Target language(s) - single or comma-separated (e.g. `en`, `en,zh-TW,ja`) | Optional | System locale or `en` |
 
-**Conditional:* `MINT_API_KEY` required for `google`, `openai`, `anthropic`; not needed for `ollama`.*
-**Default models:* `google`: `gemini-3.1-flash-lite`, `openai`: `gpt-4o-mini`, `anthropic`: `claude-3-haiku-20240307`; `ollama`: none (must specify).*
+**Conditional:* `MINT_API_KEY` required for `google`, `openai`, `anthropic`; not needed for `ollama`. `MINT_BASE_URL` required for `ollama`.*
+**Default models:* `google`: `gemini-3.1-flash-lite`, `openai`: `gpt-4o-mini`, `anthropic`: `claude-haiku-4-5`; `ollama`: none (must specify).*
+
+### Language Resolution Priority
+
+The tool uses the following priority order to determine the target language(s):
+
+1. **Flag**: `--target` / `-t` CLI flag (highest priority)
+2. **Config**: `MINT_TARGET_LANG` environment variable
+3. **System**: Operating system locale
+4. **Default**: `en` (lowest priority)
 
 ---
 
@@ -166,8 +182,8 @@ Mint follows the Unix philosophy — **do one thing, and do it well.**
 ## 🗺 Roadmap
 
 - [x] Multi-LLM provider support (Google Gemini, OpenAI, Anthropic, Ollama)
-- [x] Automatic source language detection with smart swapping
-- [x] Optional `--to` flag when `MINT_PRIMARY_LANGUAGE` is set
+- [x] Smart language detection and multi-language rotation via `MINT_TARGET_LANG`
+- [x] Explicit target language via `--target` / `-t` flag
 - [x] GoReleaser multi-platform binary release (Linux / macOS / Windows)
 - [ ] Batch translation mode
 - [ ] Glossary / custom dictionary support
