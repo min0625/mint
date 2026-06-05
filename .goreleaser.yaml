@@ -29,14 +29,11 @@ archives:
       - goos: windows
         format: zip
     files:
-      - README.md
-      - LICENSE
+      - none*
     name_template: >-
       {{- .ProjectName }}_
-      {{- .Version }}_
-      {{- title .Os }}_
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else }}{{ .Arch }}{{ end }}
+      {{- .Os }}_
+      {{- .Arch }}
 
 checksum:
   name_template: SHA256SUMS

@@ -35,6 +35,15 @@ go.work.sum
 bin/
 dist/
 
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/wheels/
+.venv/
+venv/
+*.whl
+
 # Local configuration files
 *.local.*
 *.local/

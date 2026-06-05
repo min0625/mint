@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# PyPI package name: mint-ai
+# The command name after installation is determined by [project.scripts], still `mint`
+name = "mint-ai"
+# version is dynamically injected by build_wheels.py, this is a placeholder
+version = "0.0.0"
+description = "Minimalist AI translation CLI powered by LLMs"
+readme = "../README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.8"
+keywords = ["cli", "translation", "ai", "llm", "mint"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+]
+
+[project.urls]
+Homepage = "https://github.com/min0625/mint"
+Repository = "https://github.com/min0625/mint"
+
+[project.scripts]
+# entry point: the command name after installation is `mint` (not `mint-ai`)
+# the key here is the command the user types in the terminal
+mint = "mint:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mint*"]
+
+[tool.setuptools.package-data]
+mint = ["bin/*"]
