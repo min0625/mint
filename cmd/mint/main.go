@@ -216,6 +216,21 @@ func detectLanguage(ctx context.Context, t translator.Translator, text string) (
 	return lang, nil
 }
 
+// langMatches returns true if two BCP-47 language tags are considered equivalent.
+// Exact matches are preferred; otherwise tags sharing the same primary language
+// subtag (the part before the first "-") are treated as equivalent so that, for
+// example, "zh-HK" matches "zh-TW" because both share the primary subtag "zh".
+func langMatches(a, b string) bool {
+	if a == b {
+		return true
+	}
+
+	primaryA := strings.SplitN(a, "-", 2)[0]
+	primaryB := strings.SplitN(b, "-", 2)[0]
+
+	return primaryA == primaryB
+}
+
 // determineActualTargetLang determines the actual target language based on input language and configured targets.
 // If input language matches a language in the list:
 //   - translate into the next language in the list (wraps around to the first if at the end)
@@ -237,9 +252,11 @@ func determineActualTargetLang(inputLang string, targetLangs []string) string {
 		return targetLangs[0]
 	}
 
-	// Multiple target languages: find the next one after input language
+	// Multiple target languages: find the next one after input language.
+	// Use langMatches so that BCP-47 variants sharing the same primary subtag
+	// (e.g. "zh-HK" and "zh-TW") are treated as equivalent.
 	for i, lang := range targetLangs {
-		if lang == inputLang {
+		if langMatches(lang, inputLang) {
 			// Found input language, return the next one (wrap around if necessary)
 			return targetLangs[(i+1)%len(targetLangs)]
 		}

@@ -125,15 +125,15 @@ Set your target language preference using `MINT_TARGET_LANG`:
 
 ```bash
 # Single target language
-export MINT_TARGET_LANG=zh-TW
-mint "Good morning"    # Detects English → translates to zh-TW
-mint "早安"            # Detects Chinese → grammar & spelling correction
+export MINT_TARGET_LANG=en
+mint "早安"             # Detects Chinese → translates to en
+mint "Good mooorning"  # Detects English → grammar & spelling correction
 
 # Multiple target languages (language rotation)
 export MINT_TARGET_LANG=en,zh-TW,ja
 
-mint "Hello"           # English input → translates to zh-TW (next in rotation)
-mint "你好"            # Chinese input → translates to ja (next in rotation)
+mint "Hello"         # English input → translates to zh-TW (next in rotation)
+mint "你好"          # Chinese input → translates to ja (next in rotation)
 mint "こんにちは"     # Japanese input → translates to en (wraps around)
 ```
 

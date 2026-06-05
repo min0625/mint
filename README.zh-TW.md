@@ -125,15 +125,15 @@ cat document.txt | mint -t zh-TW
 
 ```bash
 # 單一目標語言
-export MINT_TARGET_LANG=zh-TW
-mint "Good morning"    # 偵測英文 → 翻譯成 zh-TW
-mint "早安"            # 偵測中文 → 進行語法與拼字修正
+export MINT_TARGET_LANG=en
+mint "早安"             # 偵測中文 → 翻譯成 en
+mint "Good mooorning"  # 偵測英文 → 進行語法與拼字修正
 
 # 多個目標語言（語言輪換）
 export MINT_TARGET_LANG=en,zh-TW,ja
 
-mint "Hello"           # 英文輸入 → 翻譯成 zh-TW（輪換中的下一個）
-mint "你好"            # 中文輸入 → 翻譯成 ja（輪換中的下一個）
+mint "Hello"         # 英文輸入 → 翻譯成 zh-TW（輪換中的下一個）
+mint "你好"          # 中文輸入 → 翻譯成 ja（輪換中的下一個）
 mint "こんにちは"     # 日文輸入 → 翻譯成 en（環繞回開始）
 ```
 
