@@ -27,9 +27,38 @@ Mint is built around a single philosophy: **do less, do it well.**
 ---
 
 ## 📋 Installation
+
+### pipx (Python Package Index)
+
+The simplest way to install — Mint is available on PyPI:
+
+```bash
+pipx install mint-ai
+```
+
+After installation, the command is `mint`:
+
+```bash
+mint --version
+```
+
+### npm (Node Package Manager)
+
+If you prefer npm:
+
+```bash
+npm install -g mint-ai
+```
+
+Then use:
+
+```bash
+mint --version
+```
+
 ### Automated Install (One-liner)
 
-The easiest way to install — downloads the latest binary automatically:
+Downloads the latest binary automatically:
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"

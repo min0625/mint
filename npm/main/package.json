@@ -11,7 +11,8 @@
   "keywords": ["cli", "translation", "ai", "llm", "mint"],
   "files": [
     "bin/",
-    "index.js"
+    "index.js",
+    "README.md"
   ],
   "bin": {
     "mint": "bin/mint"
