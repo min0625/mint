@@ -19,12 +19,11 @@ const (
 
 // Config holds provider configuration loaded from environment variables.
 type Config struct {
-	Provider          string
-	APIKey            string
-	BaseURL           string
-	ModelName         string
-	PrimaryLanguage   string
-	SecondaryLanguage string
+	Provider   string
+	APIKey     string
+	BaseURL    string
+	ModelName  string
+	TargetLang string // Comma-separated target languages (e.g., "en", "en,zh-TW")
 }
 
 // ValidateConfig validates the provider configuration.
@@ -68,28 +67,5 @@ func (c *Config) ValidateConfig() error {
 		return errors.New("MINT_MODEL_NAME is required for ollama provider")
 	}
 
-	// Set default secondary language
-	if c.SecondaryLanguage == "" {
-		c.SecondaryLanguage = "en"
-	}
-
-	// Ensure model name is set
-	if c.ModelName == "" {
-		c.ModelName = defaultModelForProvider(c.Provider)
-	}
-
 	return nil
-}
-
-func defaultModelForProvider(provider string) string {
-	defaults := map[string]string{
-		ProviderGoogle:    "gemini-3.1-flash-lite",
-		ProviderOpenAI:    "gpt-4o-mini",
-		ProviderAnthropic: "claude-3-haiku-20240307",
-	}
-	if model, ok := defaults[provider]; ok {
-		return model
-	}
-
-	return ""
 }

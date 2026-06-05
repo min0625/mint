@@ -108,28 +108,36 @@ export MINT_MODEL_NAME=llama2
 ### 2. 指定目標語言翻譯
 
 ```bash
-# 指定目標語言（BCP-47 語言標籤）
-mint --to ja "Good morning"
+# 指定目標語言（BCP-47 語言標籤），使用 --target 或 -t 旗標
+mint --target ja "Good morning"
+mint -t zh-TW "Good morning"
 
 # 從 stdin 管線輸入
-echo "The quick brown fox" | mint --to zh-TW
+echo "The quick brown fox" | mint -t fr
 
 # 翻譯整個檔案
-cat document.txt | mint --to fr
+cat document.txt | mint -t zh-TW
 ```
 
 ### 3. 智慧語言偵測（選用）
 
-設定主要語言以啟用自動偵測：
+使用 `MINT_TARGET_LANG` 設定目標語言偏好：
 
 ```bash
-export MINT_PRIMARY_LANGUAGE=en
-export MINT_SECONDARY_LANGUAGE=zh-TW
-
-# 現在可以省略 --to 參數
+# 單一目標語言
+export MINT_TARGET_LANG=zh-TW
 mint "Good morning"    # 偵測英文 → 翻譯成 zh-TW
-mint "早安"            # 偵測中文 → 翻譯成 en
+mint "早安"            # 偵測中文 → 進行語法與拼字修正
+
+# 多個目標語言（語言輪換）
+export MINT_TARGET_LANG=en,zh-TW,ja
+
+mint "Hello"           # 英文輸入 → 翻譯成 zh-TW（輪換中的下一個）
+mint "你好"            # 中文輸入 → 翻譯成 ja（輪換中的下一個）
+mint "こんにちは"     # 日文輸入 → 翻譯成 en（環繞回開始）
 ```
+
+工具會自動偵測輸入語言並應用適當的轉換。
 
 ---
 
@@ -139,13 +147,21 @@ mint "早安"            # 偵測中文 → 翻譯成 en
 |------|------|------|--------|
 | `MINT_PROVIDER` | LLM 提供商：`google`、`openai`、`anthropic`、`ollama` | 是 | — |
 | `MINT_API_KEY` | 所選提供商的 API 金鑰 | 條件式* | — |
-| `MINT_BASE_URL` | 自訂 API 端點（例如自架或本地服務） | 否 | 提供商預設 |
+| `MINT_BASE_URL` | 自訂 API 端點；`ollama` 必填（例如自架或本地服務） | 條件式* | 提供商預設 |
 | `MINT_MODEL_NAME` | 指定要使用的 LLM 模型名稱 | 否 | 提供商預設** |
-| `MINT_PRIMARY_LANGUAGE` | 主要語言（BCP-47，如 `en`、`zh-TW`、`ja`） | 否 | — |
-| `MINT_SECONDARY_LANGUAGE` | 次要語言，用於自動偵測切換 | 否 | `en` |
+| `MINT_TARGET_LANG` | 目標語言 - 單一或逗號分隔（如 `en`、`en,zh-TW,ja`） | 否 | 系統區域設定或 `en` |
 
-**條件式:* `MINT_API_KEY` 對 `google`、`openai`、`anthropic` 必填；`ollama` 不需要。*
-**預設模型:* `google`: `gemini-3.1-flash-lite`，`openai`: `gpt-4o-mini`，`anthropic`: `claude-3-haiku-20240307`；`ollama` 無預設（須指定）。*
+**條件式:* `MINT_API_KEY` 對 `google`、`openai`、`anthropic` 必填；`ollama` 不需要。`MINT_BASE_URL` 對 `ollama` 必填。*
+**預設模型:* `google`: `gemini-3.1-flash-lite`，`openai`: `gpt-4o-mini`，`anthropic`: `claude-haiku-4-5`；`ollama` 無預設（須指定）。*
+
+### 語言解析優先順序
+
+工具使用以下優先順序來決定目標語言：
+
+1. **旗標**：`--target` / `-t` CLI 旗標（最高優先順序）
+2. **設定**：`MINT_TARGET_LANG` 環境變數
+3. **系統**：作業系統區域設定
+4. **預設**：`en`（最低優先順序）
 
 ---
 
@@ -166,8 +182,8 @@ Mint 遵循 Unix 哲學——**只做一件事，並把它做好。**
 ## 🗺 Roadmap
 
 - [x] 多 LLM 提供商支援（Google Gemini、OpenAI、Anthropic、Ollama）
-- [x] 自動語言偵測與智慧切換
-- [x] 設定 `MINT_PRIMARY_LANGUAGE` 後 `--to` 參數可選
+- [x] 透過 `MINT_TARGET_LANG` 實現智慧語言偵測與多語言輪換
+- [x] 透過 `--target` / `-t` 旗標明確指定目標語言
 - [x] GoReleaser 多平台二進位檔發布（Linux / macOS / Windows）
 - [ ] 批次翻譯模式
 - [ ] 術語表 / 自訂詞典支援
