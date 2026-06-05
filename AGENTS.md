@@ -32,6 +32,60 @@ make release-snapshot  # goreleaser release --snapshot --clean (test release loc
 Tool versions are pinned in [mise.toml](./mise.toml) (Go 1.26.4, golangci-lint 2.12.2, goreleaser 2.16.0).
 Run `mise install` to set up the exact toolchain.
 
+## PyPI Distribution (Python Wheels)
+
+Mint is published to PyPI as `mint-ai` for easy installation via Python package managers:
+
+```bash
+pip install mint-ai
+# or
+pipx install mint-ai
+```
+
+After installation, the command is `mint` (not `mint-ai`), driven by the entry point in `python/pyproject.toml`.
+
+### Local Testing of Wheels
+
+```bash
+# Step 1: Build platform-specific binaries (all platforms)
+make release-snapshot
+
+# Step 2: Build Python wheel(s)
+cd python
+# For current platform only (recommended for local testing to avoid platform mismatches)
+python build_wheels.py \
+  --version 0.1.0 \
+  --dist-dir ../dist \
+  --out-dir ../dist/wheels \
+  --current-platform-only
+
+# Step 3: Install and test locally
+# Use --find-links so pip auto-selects the compatible wheel (avoids glob ambiguity)
+pipx install mint-ai --pip-args="--find-links ../dist/wheels --no-index" --force
+
+# Step 4: Verify
+mint --to en "Hello, world!"
+```
+
+**PyPI Release Workflow:**
+1. Push tag: `git tag v1.0.0 && git push origin v1.0.0`
+2. GitHub Actions triggers `release.yml` → builds multi-platform binaries
+3. GitHub Actions triggers `publish.yml` → assembles wheels → uploads to PyPI
+4. Final users: `pip install mint-ai` (PyPI auto-selects correct platform)
+
+### Directory Structure
+
+```
+python/
+  mint/
+    __init__.py              # Python wrapper; locates and execs bundled binary
+    __main__.py              # Enables `python -m mint`
+  pyproject.toml             # Package metadata; specifies entry point `mint = mint:main`
+  build_wheels.py            # Assembles wheels from goreleaser dist/ binaries
+.github/workflows/publish.yml # CI: download binaries → assemble wheels → upload to PyPI
+.goreleaser.yaml             # Configure archive names for wheel building
+```
+
 ## Project Layout
 
 ```
