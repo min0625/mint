@@ -1,4 +1,4 @@
-**English** | [繁體中文](./README.zh-TW.md)
+**English** | [繁體中文](https://github.com/min0625/mint/blob/main/README.zh-TW.md)
 
 # 🌿 Mint
 
