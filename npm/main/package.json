@@ -11,13 +11,5 @@
   "keywords": ["cli", "translation", "ai", "llm", "mint"],
   "bin": {
     "mint": "bin/mint"
-  },
-  "optionalDependencies": {
-    "mint-ai-linux-x64":     "0.0.0",
-    "mint-ai-linux-arm64":   "0.0.0",
-    "mint-ai-darwin-x64":    "0.0.0",
-    "mint-ai-darwin-arm64":  "0.0.0",
-    "mint-ai-windows-x64":   "0.0.0",
-    "mint-ai-windows-arm64": "0.0.0"
   }
 }

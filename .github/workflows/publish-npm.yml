@@ -55,15 +55,5 @@ jobs:
             --dist-dir dist \
             --out-dir dist/npm
 
-      # Platform packages must be published before the main package
-      - name: Publish platform packages
-        run: |
-          for suffix in linux-x64 linux-arm64 darwin-x64 darwin-arm64 windows-x64 windows-arm64; do
-            dir="dist/npm/${suffix}"
-            if [ -d "$dir" ]; then
-              npm publish "$dir" --access public --provenance
-            fi
-          done
-
       - name: Publish main package
         run: npm publish dist/npm/main --access public --provenance
