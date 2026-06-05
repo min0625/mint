@@ -80,6 +80,8 @@ def build_wheel(
 
         # 4. METADATA
         # Name field uses PyPI package name (mint-ai) with hyphens (normalized format)
+        readme_path = Path(__file__).parent.parent / "README.md"
+        readme_content = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
         metadata = textwrap.dedent(f"""\
             Metadata-Version: 2.1
             Name: mint-ai
@@ -90,7 +92,9 @@ def build_wheel(
             Requires-Python: >=3.8
             Classifier: Programming Language :: Python :: 3
             Classifier: License :: OSI Approved :: Apache Software License
-        """)
+            Description-Content-Type: text/markdown
+
+        """) + readme_content
         dist_info = f"{dist_name}-{version}.dist-info"
         zf.writestr(f"{dist_info}/METADATA", metadata)
         record_lines.append(f"{dist_info}/METADATA,,")

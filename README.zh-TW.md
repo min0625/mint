@@ -27,9 +27,38 @@ Mint 的設計哲學只有一句話：**做最少的事，做到最好。**
 ---
 
 ## 📋 安裝
+
+### pipx（Python 套件索引）
+
+最簡單的安裝方式——Mint 已上架到 PyPI：
+
+```bash
+pipx install mint-ai
+```
+
+安裝後，命令是 `mint`：
+
+```bash
+mint --version
+```
+
+### npm（Node 套件管理器）
+
+如果偏好使用 npm：
+
+```bash
+npm install -g mint-ai
+```
+
+然後使用：
+
+```bash
+mint --version
+```
+
 ### 自動安裝（單行指令）
 
-最簡單的安裝方式——自動下載最新的二進位檔：
+自動下載最新的二進位檔：
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"

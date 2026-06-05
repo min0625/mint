@@ -77,6 +77,12 @@ def build_main_package(main_src: Path, dist_dir: Path, out_dir: Path, version: s
     pkg_json.pop("optionalDependencies", None)
     pkg_json_path.write_text(json.dumps(pkg_json, indent=2))
 
+    # Copy README into the package so it appears on the npm registry page
+    repo_root = Path(__file__).parent.parent
+    readme_src = repo_root / "README.md"
+    if readme_src.exists():
+        shutil.copy2(readme_src, pkg_dir / "README.md")
+
     # Ensure shim is executable
     shim = pkg_dir / "bin" / "mint"
     if shim.exists():

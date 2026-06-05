@@ -5,13 +5,27 @@ See [README.md](./README.md) for full project overview.
 
 ## Installation
 
-### Quick Install
+### pipx (Recommended)
+
+```bash
+pipx install mint-ai
+```
+
+### npm
+
+```bash
+npm install -g mint-ai
+```
+
+### Quick Install (Binary)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh | bash
 ```
 
-Or with `go install` (requires Go 1.21+):
+### go install
+
+If you have Go 1.21+ installed:
 
 ```bash
 go install github.com/min0625/mint/cmd/mint@latest
