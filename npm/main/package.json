@@ -9,6 +9,10 @@
     "url": "https://github.com/min0625/mint.git"
   },
   "keywords": ["cli", "translation", "ai", "llm", "mint"],
+  "files": [
+    "bin/",
+    "index.js"
+  ],
   "bin": {
     "mint": "bin/mint"
   }

@@ -56,4 +56,6 @@ jobs:
             --out-dir dist/npm
 
       - name: Publish main package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish dist/npm/main --access public --provenance

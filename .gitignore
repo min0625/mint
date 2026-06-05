@@ -32,7 +32,7 @@ go.work.sum
 # .vscode/
 
 # Output of go build
-bin/
+/bin/
 dist/
 
 # Python
