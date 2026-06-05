@@ -119,6 +119,22 @@ def build_wheel(
     return wheel_path
 
 
+def normalize_version(version: str) -> str:
+    """Convert a version string to PEP 440 format.
+
+    Strips the leading 'v' and converts semver pre-release suffixes:
+      v0.0.0-alpha.4  -> 0.0.0a4
+      v0.0.0-beta.2   -> 0.0.0b2
+      v0.0.0-rc.1     -> 0.0.0rc1
+    """
+    import re
+    v = version.lstrip("v")
+    v = re.sub(r"-alpha\.(\d+)$", r"a\1", v)
+    v = re.sub(r"-beta\.(\d+)$", r"b\1", v)
+    v = re.sub(r"-rc\.(\d+)$", r"rc\1", v)
+    return v
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build mint Python wheels")
     parser.add_argument("--version", required=True, help="Release version, e.g. 1.2.3")
@@ -134,7 +150,7 @@ def main() -> None:
     dist_dir = Path(args.dist_dir).resolve()
     out_dir = Path(args.out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-    version = args.version.lstrip("v")
+    version = normalize_version(args.version)
 
     # Determine current platform if --current-platform-only is set
     current_goos = None
