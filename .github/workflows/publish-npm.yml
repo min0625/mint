@@ -1,0 +1,66 @@
+name: Publish to npm
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+
+jobs:
+  publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Get release version
+        id: version
+        run: |
+          # When triggered by workflow_run, head_branch is the tag name, e.g. v1.2.3
+          TAG="${{ github.event.workflow_run.head_branch }}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download release archives from GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p dist
+          gh release download "${{ steps.version.outputs.tag }}" \
+            --repo ${{ github.repository }} \
+            --dir dist
+
+      - name: Build npm packages
+        run: |
+          python npm/build_npm_packages.py \
+            --version "${{ steps.version.outputs.version }}" \
+            --dist-dir dist \
+            --out-dir dist/npm
+
+      # Platform packages must be published before the main package
+      - name: Publish platform packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for suffix in linux-x64 linux-arm64 darwin-x64 darwin-arm64 windows-x64 windows-arm64; do
+            dir="dist/npm/${suffix}"
+            if [ -d "$dir" ]; then
+              npm publish "$dir" --access public
+            fi
+          done
+
+      - name: Publish main package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish dist/npm/main --access public
