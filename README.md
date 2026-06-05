@@ -223,4 +223,4 @@ Mint follows the Unix philosophy — **do one thing, and do it well.**
 
 ## 📄 License
 
-Apache License 2.0 — see [LICENSE](./LICENSE) file for details.
+Apache License 2.0 — see [LICENSE](https://github.com/min0625/mint/blob/main/LICENSE) file for details.
