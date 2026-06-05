@@ -40,7 +40,7 @@ internal/translator/                # Translator interface (translator.Translato
 internal/provider/
   config.go                          # Config struct; provider validation
   provider.go                        # NewTranslator factory function
-  google/google.go                   # Google Gemini HTTP client (implements Translator)
+  googlegenai/google_genai.go        # Google Gemini HTTP client (implements Translator)
   openai/openai.go                   # OpenAI GPT HTTP client (implements Translator)
   anthropic/anthropic.go             # Anthropic Claude HTTP client (implements Translator)
   ollama/ollama.go                   # Ollama local LLM HTTP client (implements Translator)
@@ -53,14 +53,14 @@ bin/mint                             # compiled binary (gitignored)
 
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
-| `MINT_PROVIDER` | LLM provider (`google`, `openai`, `anthropic`, `ollama`) | Yes | — |
+| `MINT_PROVIDER` | LLM provider (`google-genai`, `openai`, `anthropic`, `ollama`) | Yes | — |
 | `MINT_API_KEY` | API key for the provider (not required for `ollama`) | Conditional* | — |
 | `MINT_BASE_URL` | Custom API endpoint URL | Optional | provider default |
 | `MINT_MODEL_NAME` | Model name to use | Optional | provider default** |
 | `MINT_TARGET_LANG` | Target language(s) - single or comma-separated (e.g. `en`, `en,zh-TW`) | Optional | System locale or `en` |
 
-**Conditional:* Required for `google`, `openai`, `anthropic`; not required for `ollama`.*
-**Default models:* `google`: `gemini-3.1-flash-lite`; `openai`: `gpt-4o-mini`; `anthropic`: `claude-haiku-4-5`; `ollama`: none (must be specified).
+**Conditional:* Required for `google-genai`, `openai`, `anthropic`; not required for `ollama`.*
+**Default models:* `google-genai`: `gemini-3.1-flash-lite`; `openai`: `gpt-4o-mini`; `anthropic`: `claude-haiku-4-5`; `ollama`: none (must be specified).
 
 ## Conventions
 

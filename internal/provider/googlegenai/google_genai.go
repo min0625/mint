@@ -1,7 +1,7 @@
 // Copyright 2026 The Mint Authors.
 
-// Package google provides Google Gemini LLM client for text translation.
-package google
+// Package googlegenai provides Google Gemini LLM client for text translation.
+package googlegenai
 
 import (
 	"bytes"

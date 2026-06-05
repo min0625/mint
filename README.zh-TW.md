@@ -87,7 +87,7 @@ mint --version
 
 ```bash
 # Google Gemini（有免費層級）
-export MINT_PROVIDER=google
+export MINT_PROVIDER=google-genai
 export MINT_API_KEY=your_gemini_api_key
 # 申請免費 API 金鑰：https://aistudio.google.com/apikey
 
@@ -145,14 +145,14 @@ mint "こんにちは"     # 日文輸入 → 翻譯成 en（環繞回開始）
 
 | 變數 | 說明 | 必填 | 預設值 |
 |------|------|------|--------|
-| `MINT_PROVIDER` | LLM 提供商：`google`、`openai`、`anthropic`、`ollama` | 是 | — |
+| `MINT_PROVIDER` | LLM 提供商：`google-genai`、`openai`、`anthropic`、`ollama` | 是 | — |
 | `MINT_API_KEY` | 所選提供商的 API 金鑰 | 條件式* | — |
 | `MINT_BASE_URL` | 自訂 API 端點；`ollama` 必填（例如自架或本地服務） | 條件式* | 提供商預設 |
 | `MINT_MODEL_NAME` | 指定要使用的 LLM 模型名稱 | 否 | 提供商預設** |
 | `MINT_TARGET_LANG` | 目標語言 - 單一或逗號分隔（如 `en`、`en,zh-TW,ja`） | 否 | 系統區域設定或 `en` |
 
-**條件式:* `MINT_API_KEY` 對 `google`、`openai`、`anthropic` 必填；`ollama` 不需要。`MINT_BASE_URL` 對 `ollama` 必填。*
-**預設模型:* `google`: `gemini-3.1-flash-lite`，`openai`: `gpt-4o-mini`，`anthropic`: `claude-haiku-4-5`；`ollama` 無預設（須指定）。*
+**條件式:* `MINT_API_KEY` 對 `google-genai`、`openai`、`anthropic` 必填；`ollama` 不需要。`MINT_BASE_URL` 對 `ollama` 必填。*
+**預設模型:* `google-genai`: `gemini-3.1-flash-lite`，`openai`: `gpt-4o-mini`，`anthropic`: `claude-haiku-4-5`；`ollama` 無預設（須指定）。*
 
 ### 語言解析優先順序
 
