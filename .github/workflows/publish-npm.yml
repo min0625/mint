@@ -26,25 +26,31 @@ jobs:
 
       - name: Get release version
         id: version
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           # When triggered by workflow_run, head_branch is the tag name, e.g. v1.2.3
-          TAG="${{ github.event.workflow_run.head_branch }}"
+          TAG="$HEAD_BRANCH"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Download release archives from GitHub Releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           mkdir -p dist
-          gh release download "${{ steps.version.outputs.tag }}" \
-            --repo ${{ github.repository }} \
+          gh release download "$RELEASE_TAG" \
+            --repo "$REPOSITORY" \
             --dir dist
 
       - name: Build npm packages
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           python npm/build_npm_packages.py \
-            --version "${{ steps.version.outputs.version }}" \
+            --version "$PACKAGE_VERSION" \
             --dist-dir dist \
             --out-dir dist/npm
 
