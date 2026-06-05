@@ -18,8 +18,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
 
       - uses: actions/setup-python@v5
         with:
@@ -56,4 +57,4 @@ jobs:
             --out-dir dist/npm
 
       - name: Publish main package
-        run: npm publish dist/npm/main --access public --provenance
+        run: npm publish dist/npm/main --access public
