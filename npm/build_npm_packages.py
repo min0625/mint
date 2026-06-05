@@ -14,7 +14,6 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-SCOPE = "@min0625"
 BASE_NAME = "mint-ai"
 MAIN_PKG_NAME = "mint-ai"  # main package has no scope
 
@@ -55,7 +54,7 @@ def build_platform_package(
     dist_dir: Path, out_dir: Path, version: str,
     goos: str, goarch: str, npm_os: str, npm_cpu: str, suffix: str,
 ) -> bool:
-    pkg_name = f"{SCOPE}/{BASE_NAME}-{suffix}"
+    pkg_name = f"{BASE_NAME}-{suffix}"
     pkg_dir = out_dir / suffix
     bin_dir = pkg_dir / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
@@ -96,7 +95,7 @@ def build_main_package(main_src: Path, out_dir: Path, version: str) -> None:
     pkg_json = json.loads(pkg_json_path.read_text())
     pkg_json["version"] = version
     pkg_json["optionalDependencies"] = {
-        f"{SCOPE}/{BASE_NAME}-{suffix}": version
+        f"{BASE_NAME}-{suffix}": version
         for *_, suffix in PLATFORM_MAP
     }
     pkg_json_path.write_text(json.dumps(pkg_json, indent=2))
