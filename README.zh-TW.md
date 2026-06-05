@@ -32,7 +32,7 @@ Mint 的設計哲學只有一句話：**做最少的事，做到最好。**
 最簡單的安裝方式——自動下載最新的二進位檔：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh | bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"
 ```
 
 功能特性：

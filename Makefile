@@ -1,5 +1,5 @@
 VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD)
-COMMIT ?= $(shell git rev-parse --short HEAD)
+COMMIT ?= $(shell git rev-parse HEAD)
 LDFLAGS ?= -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 NEW_FROM_REV ?= HEAD
 
