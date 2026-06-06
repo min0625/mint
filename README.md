@@ -4,105 +4,62 @@
 
 > Minimalist AI Translation CLI — Simple. Fast. Intuitive.
 
----
+[![GitHub](https://img.shields.io/badge/GitHub-min0625%2Fmint-blue?logo=github)](https://github.com/min0625/mint)
+[![Go Reference](https://pkg.go.dev/badge/github.com/min0625/mint.svg)](https://pkg.go.dev/github.com/min0625/mint)
+[![PyPI](https://img.shields.io/pypi/v/mint-ai?logo=pypi&logoColor=white)](https://pypi.org/project/mint-ai/)
+[![npm](https://img.shields.io/npm/v/mint-ai?logo=npm)](https://www.npmjs.com/package/mint-ai)
 
 Mint is a lightweight, LLM-powered translation tool for the command line.
-Choose your favorite LLM provider (Google Gemini, OpenAI, Anthropic, or local Ollama),
-and get fluent, natural translations instantly with optional smart language detection.
+Choose your provider (Google Gemini, OpenAI, Anthropic, or local Ollama)
+and get fluent translations instantly with optional smart language detection.
 
 ---
 
 ## ✨ Why Mint?
 
-Most translation tools are either too bloated or too locked into a specific platform.
-Mint is built around a single philosophy: **do less, do it well.**
-
 - **Minimal** — One command, no noise
-- **Fast** — Calls the LLM API directly, no intermediate layers
-- **Multi-provider** — Choose between Google Gemini, OpenAI, Anthropic, or local Ollama models
-- **Flexible** — Supports any language pair, freely specify your target language
-- **Smart detection** — Optionally detect input language and auto-translate to your preference
-- **Composable** — Pipe-friendly stdin/stdout design, fits naturally into any workflow
+- **Multi-provider** — Google Gemini, OpenAI, Anthropic, or local Ollama
+- **Flexible** — Any language pair; smart auto-detection optional
+- **Composable** — Pipe-friendly stdin/stdout, fits any workflow
 
 ---
 
 ## 📋 Installation
 
-### pipx (Python Package Index)
-
-The simplest way to install — Mint is available on PyPI:
+### pipx
 
 ```bash
 pipx install mint-ai
 ```
 
-After installation, the command is `mint`:
-
-```bash
-mint --version
-```
-
-### npm (Node Package Manager)
-
-If you prefer npm:
+### npm
 
 ```bash
 npm install -g mint-ai
 ```
 
-Then use:
-
-```bash
-mint --version
-```
-
-### Automated Install (One-liner)
-
-Downloads the latest binary automatically:
+### Automated install (one-liner)
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"
 ```
 
-Features:
-- Detects your OS and architecture automatically (Linux/macOS, x86_64/arm64)
-- Verifies SHA256 checksums
-- Installs to `~/.local/bin` by default (override with `MINT_INSTALL_DIR`)
-- Shows PATH setup hints if needed
-- Supports pinning a specific version: `MINT_VERSION=v1.0.0 bash script/install.sh`
+Auto-detects OS and architecture (Linux/macOS, x86_64/arm64),
+and installs to `~/.local/bin`. Override with `MINT_INSTALL_DIR` or pin a version with `MINT_VERSION=v1.0.0`.
 
 ### go install
-
-If you have Go 1.21+ installed:
 
 ```bash
 go install github.com/min0625/mint/cmd/mint@latest
 ```
 
-The binary will be available as `mint` in your `$GOPATH/bin` directory (usually `~/go/bin`).
+Requires Go 1.21+. Binary lands in `$GOPATH/bin` (usually `~/go/bin`).
 
-### Manual Download from GitHub Releases
+### Manual download
 
-Download pre-built binaries directly from [GitHub Releases](https://github.com/min0625/mint/releases):
+Pre-built binaries at [GitHub Releases](https://github.com/min0625/mint/releases)
 
-```bash
-# Linux x86_64 (amd64)
-curl -L https://github.com/min0625/mint/releases/latest/download/mint_linux_amd64.tar.gz \
-  | tar xz && sudo mv mint /usr/local/bin/
-
-# macOS arm64 (Apple Silicon)
-curl -L https://github.com/min0625/mint/releases/latest/download/mint_darwin_arm64.tar.gz \
-  | tar xz && sudo mv mint /usr/local/bin/
-
-# macOS x86_64 / Intel (amd64)
-curl -L https://github.com/min0625/mint/releases/latest/download/mint_darwin_amd64.tar.gz \
-  | tar xz && sudo mv mint /usr/local/bin/
-
-# Windows x86_64 (PowerShell)
-# Download mint_windows_amd64.zip from releases page and extract to a directory in your PATH
-```
-
-### Verify Installation
+### Verify installation
 
 ```bash
 mint --version
@@ -112,13 +69,12 @@ mint --version
 
 ## 🚀 Quick Start
 
-### 1. Choose your provider
+### 1. Set your provider
 
 ```bash
-# Google Gemini (free tier available)
+# Google Gemini (free tier available — https://aistudio.google.com/apikey)
 export MINT_PROVIDER=google-genai
 export MINT_API_KEY=your_gemini_api_key
-# Get a free API key at: https://aistudio.google.com/apikey
 
 # OpenAI
 export MINT_PROVIDER=openai
@@ -134,77 +90,53 @@ export MINT_BASE_URL=http://localhost:11434
 export MINT_MODEL_NAME=llama2
 ```
 
-### 2. Translate with explicit target language
+### 2. Translate
 
 ```bash
-# Specify a target language (BCP-47 tag) using --target or -t flag
 mint --target ja "Good morning"
 mint -t zh-TW "Good morning"
 
-# Pipe from stdin
 echo "The quick brown fox" | mint -t fr
-
-# Translate a file
 cat document.txt | mint -t zh-TW
 ```
 
-### 3. Smart language detection (optional)
-
-Set your target language preference using `MINT_TARGET_LANG`:
+### 3. Smart language detection
 
 ```bash
-# Single target language
 export MINT_TARGET_LANG=en
 mint "早安"             # Detects Chinese → translates to en
-mint "Good mooorning"  # Detects English → grammar & spelling correction
+mint "Good mooorning"  # Detects English → corrects grammar & spelling
 
-# Multiple target languages (language rotation)
+# Rotate across multiple targets
 export MINT_TARGET_LANG=en,zh-TW,ja
-
-mint "Hello"         # English input → translates to zh-TW (next in rotation)
-mint "你好"          # Chinese input → translates to ja (next in rotation)
-mint "こんにちは"     # Japanese input → translates to en (wraps around)
+mint "Hello"       # → zh-TW
+mint "你好"        # → ja
+mint "こんにちは"   # → en
 ```
-
-The tool automatically detects the input language and applies the appropriate transformation.
 
 ---
 
 ## 🔑 Environment Variables
 
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| `MINT_PROVIDER` | LLM provider: `google-genai`, `openai`, `anthropic`, `ollama` | Yes | — |
-| `MINT_API_KEY` | API key for the chosen provider | Conditional* | — |
-| `MINT_BASE_URL` | Custom API endpoint; required for `ollama` (e.g., for self-hosted or local services) | Conditional* | Provider default |
-| `MINT_MODEL_NAME` | LLM model name to use | Optional | Provider default** |
-| `MINT_TARGET_LANG` | Target language(s) - single or comma-separated (e.g. `en`, `en,zh-TW,ja`) | Optional | System locale or `en` |
-
-**Conditional:* `MINT_API_KEY` required for `google-genai`, `openai`, `anthropic`; not needed for `ollama`. `MINT_BASE_URL` required for `ollama`.*
-**Default models:* `google-genai`: `gemini-3.1-flash-lite`, `openai`: `gpt-4o-mini`, `anthropic`: `claude-haiku-4-5`; `ollama`: none (must specify).*
-
-### Language Resolution Priority
-
-The tool uses the following priority order to determine the target language(s):
-
-1. **Flag**: `--target` / `-t` CLI flag (highest priority)
-2. **Config**: `MINT_TARGET_LANG` environment variable
-3. **System**: Operating system locale
-4. **Default**: `en` (lowest priority)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MINT_PROVIDER` | `google-genai` \| `openai` \| `anthropic` \| `ollama` | — (required) |
+| `MINT_API_KEY` | API key (required for all providers except `ollama`) | — |
+| `MINT_BASE_URL` | Custom endpoint (required for `ollama`) | Provider default |
+| `MINT_MODEL_NAME` | Model to use | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` / none |
+| `MINT_TARGET_LANG` | Target language(s), e.g. `en` or `en,zh-TW,ja` | System locale or `en` |
 
 ---
 
 ## 🎯 Design Principles
-
-Mint follows the Unix philosophy — **do one thing, and do it well.**
 
 | Principle | Description |
 |-----------|-------------|
 | Zero-dependency install | Single binary, works out of the box |
 | Multi-provider | Supports major LLM services plus local alternatives |
 | Composability | Pairs seamlessly with `grep`, `sed`, `xargs`, and friends |
-| Transparent output | Results go to stdout, errors go to stderr |
-| Environment-friendly | API keys managed via environment variables, no config file pollution |
+| Transparent output | Results to stdout, errors to stderr |
+| Environment-friendly | API keys via env vars, no config file pollution |
 
 ---
 
@@ -223,4 +155,4 @@ Mint follows the Unix philosophy — **do one thing, and do it well.**
 
 ## 📄 License
 
-Apache License 2.0 — see [LICENSE](https://github.com/min0625/mint/blob/main/LICENSE) file for details.
+Apache License 2.0 — see [LICENSE](https://github.com/min0625/mint/blob/main/LICENSE) for details.
