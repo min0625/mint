@@ -3,9 +3,13 @@
 // Package translator defines the Translator interface for LLM translation backends.
 package translator
 
-import "context"
+import (
+	"context"
+	"io"
+)
 
 // Translator translates text into a target language.
+// Implementations write tokens directly to w as they arrive.
 type Translator interface {
-	Translate(ctx context.Context, text, targetLang string) (string, error)
+	Translate(ctx context.Context, text, targetLang string, w io.Writer) error
 }

@@ -4,16 +4,20 @@
 package googlegenai
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
-const apiEndpoint = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent"
+const (
+	apiEndpoint       = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent"
+	streamAPIEndpoint = "https://generativelanguage.googleapis.com/v1beta/models/%s:streamGenerateContent"
+)
 
 // Client is a Google Gemini API client.
 type Client struct {
@@ -60,8 +64,8 @@ type candidate struct {
 	Content content `json:"content"`
 }
 
-// Translate calls the Google Gemini API to translate text into targetLang (BCP-47 tag).
-func (c *Client) Translate(ctx context.Context, text, targetLang string) (string, error) {
+// Translate calls the Google Gemini streaming API and writes tokens to w as they arrive.
+func (c *Client) Translate(ctx context.Context, text, targetLang string, w io.Writer) error {
 	prompt := fmt.Sprintf(
 		"Translate the following text to %s. Output only the translation, nothing else:\n\n%s",
 		targetLang, text,
@@ -76,45 +80,53 @@ func (c *Client) Translate(ctx context.Context, text, targetLang string) (string
 
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
-		return "", fmt.Errorf("marshal request: %w", err)
+		return fmt.Errorf("marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("%s?key=%s", fmt.Sprintf(apiEndpoint, c.modelName), c.apiKey)
+	url := fmt.Sprintf("%s?alt=sse&key=%s", fmt.Sprintf(streamAPIEndpoint, c.modelName), c.apiKey)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
 	if err != nil {
-		return "", fmt.Errorf("create request: %w", err)
+		return fmt.Errorf("create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("call API: %w", err)
+		return fmt.Errorf("call API: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read response: %w", err)
-	}
-
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBytes))
+		respBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBytes))
 	}
 
-	var result responseBody
-	if err := json.Unmarshal(respBytes, &result); err != nil {
-		return "", fmt.Errorf("unmarshal response: %w", err)
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+
+		data := strings.TrimPrefix(line, "data: ")
+
+		var result responseBody
+		if err := json.Unmarshal([]byte(data), &result); err != nil {
+			continue
+		}
+
+		if len(result.Candidates) > 0 && len(result.Candidates[0].Content.Parts) > 0 {
+			if _, err := fmt.Fprint(w, result.Candidates[0].Content.Parts[0].Text); err != nil {
+				return err
+			}
+		}
 	}
 
-	if len(result.Candidates) == 0 {
-		return "", errors.New("no candidates in response")
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
 	}
 
-	if len(result.Candidates[0].Content.Parts) == 0 {
-		return "", errors.New("no text in response")
-	}
-
-	return result.Candidates[0].Content.Parts[0].Text, nil
+	return scanner.Err()
 }

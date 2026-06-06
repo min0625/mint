@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -130,12 +131,9 @@ func newRootCmd() *cobra.Command {
 			}
 
 			// Perform translation
-			result, err := t.Translate(context.Background(), prompt, actualTargetLang)
-			if err != nil {
+			if err := t.Translate(context.Background(), prompt, actualTargetLang, os.Stdout); err != nil {
 				return fmt.Errorf("translation failed: %w", err)
 			}
-
-			fmt.Println(result)
 
 			return nil
 		},
@@ -233,12 +231,12 @@ func detectLanguage(ctx context.Context, t translator.Translator, text string) (
 		"If the text contains only numbers, symbols, or other language-neutral content, reply with: neutral\n\n" +
 		"<text>\n" + text + "\n</text>"
 
-	result, err := t.Translate(ctx, prompt, "en")
-	if err != nil {
+	var buf bytes.Buffer
+	if err := t.Translate(ctx, prompt, "en", &buf); err != nil {
 		return "", err
 	}
 
-	lang := strings.ToLower(strings.TrimSpace(result))
+	lang := strings.ToLower(strings.TrimSpace(buf.String()))
 	if lang == "neutral" {
 		return "", nil
 	}

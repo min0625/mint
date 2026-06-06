@@ -4,10 +4,10 @@
 package ollama
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -35,12 +35,13 @@ type requestBody struct {
 	Stream bool   `json:"stream"`
 }
 
-type responseBody struct {
+type streamResponseBody struct {
 	Response string `json:"response"`
+	Done     bool   `json:"done"`
 }
 
-// Translate calls the Ollama API to translate text into targetLang (BCP-47 tag).
-func (c *Client) Translate(ctx context.Context, text, targetLang string) (string, error) {
+// Translate calls the Ollama API with streaming and writes tokens to w as they arrive.
+func (c *Client) Translate(ctx context.Context, text, targetLang string, w io.Writer) error {
 	prompt := fmt.Sprintf(
 		"Translate the following text to %s. Output only the translation, nothing else:\n\n%s",
 		targetLang, text,
@@ -49,46 +50,53 @@ func (c *Client) Translate(ctx context.Context, text, targetLang string) (string
 	body := requestBody{
 		Model:  c.modelName,
 		Prompt: prompt,
-		Stream: false,
+		Stream: true,
 	}
 
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
-		return "", fmt.Errorf("marshal request: %w", err)
+		return fmt.Errorf("marshal request: %w", err)
 	}
 
 	url := c.baseURL + "/api/generate"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
 	if err != nil {
-		return "", fmt.Errorf("create request: %w", err)
+		return fmt.Errorf("create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("call API: %w", err)
+		return fmt.Errorf("call API: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read response: %w", err)
-	}
-
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBytes))
+		respBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBytes))
 	}
 
-	var result responseBody
-	if err := json.Unmarshal(respBytes, &result); err != nil {
-		return "", fmt.Errorf("unmarshal response: %w", err)
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		var sr streamResponseBody
+		if err := json.Unmarshal(scanner.Bytes(), &sr); err != nil {
+			continue
+		}
+
+		if _, err := fmt.Fprint(w, sr.Response); err != nil {
+			return err
+		}
+
+		if sr.Done {
+			break
+		}
 	}
 
-	if result.Response == "" {
-		return "", errors.New("empty response from Ollama")
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
 	}
 
-	return result.Response, nil
+	return scanner.Err()
 }
