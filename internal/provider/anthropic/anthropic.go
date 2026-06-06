@@ -4,13 +4,14 @@
 package anthropic
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 const (
@@ -48,6 +49,7 @@ type requestBody struct {
 	Model     string    `json:"model"`
 	MaxTokens int       `json:"max_tokens"`
 	Messages  []message `json:"messages"`
+	Stream    bool      `json:"stream"`
 }
 
 type message struct {
@@ -55,17 +57,18 @@ type message struct {
 	Content string `json:"content"`
 }
 
-type responseBody struct {
-	Content []contentBlock `json:"content"`
-}
-
-type contentBlock struct {
+type streamDelta struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
 }
 
-// Translate calls the Anthropic API to translate text into targetLang (BCP-47 tag).
-func (c *Client) Translate(ctx context.Context, text, targetLang string) (string, error) {
+type streamEvent struct {
+	Type  string      `json:"type"`
+	Delta streamDelta `json:"delta"`
+}
+
+// Translate calls the Anthropic API with streaming and writes tokens to w as they arrive.
+func (c *Client) Translate(ctx context.Context, text, targetLang string, w io.Writer) error {
 	prompt := fmt.Sprintf(
 		"Translate the following text to %s. Output only the translation, nothing else:\n\n%s",
 		targetLang, text,
@@ -74,19 +77,18 @@ func (c *Client) Translate(ctx context.Context, text, targetLang string) (string
 	body := requestBody{
 		Model:     c.modelName,
 		MaxTokens: 1024,
-		Messages: []message{
-			{Role: "user", Content: prompt},
-		},
+		Messages:  []message{{Role: "user", Content: prompt}},
+		Stream:    true,
 	}
 
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
-		return "", fmt.Errorf("marshal request: %w", err)
+		return fmt.Errorf("marshal request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewReader(jsonBody))
 	if err != nil {
-		return "", fmt.Errorf("create request: %w", err)
+		return fmt.Errorf("create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -95,27 +97,39 @@ func (c *Client) Translate(ctx context.Context, text, targetLang string) (string
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("call API: %w", err)
+		return fmt.Errorf("call API: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read response: %w", err)
-	}
-
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBytes))
+		respBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBytes))
 	}
 
-	var result responseBody
-	if err := json.Unmarshal(respBytes, &result); err != nil {
-		return "", fmt.Errorf("unmarshal response: %w", err)
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+
+		data := strings.TrimPrefix(line, "data: ")
+
+		var event streamEvent
+		if err := json.Unmarshal([]byte(data), &event); err != nil {
+			continue
+		}
+
+		if event.Type == "content_block_delta" && event.Delta.Type == "text_delta" {
+			if _, err := fmt.Fprint(w, event.Delta.Text); err != nil {
+				return err
+			}
+		}
 	}
 
-	if len(result.Content) == 0 {
-		return "", errors.New("no content in response")
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
 	}
 
-	return result.Content[0].Text, nil
+	return scanner.Err()
 }
