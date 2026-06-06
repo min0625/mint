@@ -5,7 +5,7 @@ See [README.md](./README.md) for full project overview.
 
 ## Installation
 
-### pipx (Recommended)
+### pipx
 
 ```bash
 pipx install mint-ai
@@ -17,18 +17,41 @@ pipx install mint-ai
 npm install -g mint-ai
 ```
 
-### Quick Install (Binary)
+### Automated install (one-liner)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh | bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"
 ```
+
+Auto-detects OS and architecture (Linux/macOS, x86_64/arm64), verifies SHA256 checksums,
+and installs to `~/.local/bin`. Override with `MINT_INSTALL_DIR` or pin a version with `MINT_VERSION=v1.0.0`.
 
 ### go install
 
-If you have Go 1.21+ installed:
-
 ```bash
 go install github.com/min0625/mint/cmd/mint@latest
+```
+
+Requires Go 1.21+. Binary lands in `$GOPATH/bin` (usually `~/go/bin`).
+
+### Manual download
+
+Pre-built binaries at [GitHub Releases](https://github.com/min0625/mint/releases):
+
+```bash
+# Linux x86_64
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_linux_amd64.tar.gz \
+  | tar xz && sudo mv mint /usr/local/bin/
+
+# macOS Apple Silicon
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_darwin_arm64.tar.gz \
+  | tar xz && sudo mv mint /usr/local/bin/
+
+# macOS Intel
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_darwin_amd64.tar.gz \
+  | tar xz && sudo mv mint /usr/local/bin/
+
+# Windows — download mint_windows_amd64.zip from releases and extract to a directory in PATH
 ```
 
 ## Build & Test Commands
@@ -78,7 +101,7 @@ python build_wheels.py \
 pipx install mint-ai --pip-args="--find-links ../dist/wheels --no-index" --force
 
 # Step 4: Verify
-mint --to en "Hello, world!"
+mint --target en "Hello, world!"
 ```
 
 **PyPI Release Workflow:**
