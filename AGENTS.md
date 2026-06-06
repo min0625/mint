@@ -121,14 +121,14 @@ bin/mint                             # compiled binary (gitignored)
 
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
-| `MINT_PROVIDER` | LLM provider (`google-genai`, `openai`, `anthropic`, `ollama`) | Yes | — |
-| `MINT_API_KEY` | API key for the provider (not required for `ollama`) | Conditional* | — |
-| `MINT_BASE_URL` | Custom API endpoint URL | Optional | provider default |
-| `MINT_MODEL_NAME` | Model name to use | Optional | provider default** |
-| `MINT_TARGET_LANG` | Target language(s) - single or comma-separated (e.g. `en`, `en,zh-TW`) | Optional | System locale or `en` |
+| `MINT_PROVIDER` | LLM provider: `google-genai`, `openai`, `anthropic`, `ollama` | Yes | — |
+| `MINT_API_KEY` | API key for the chosen provider | Conditional* | — |
+| `MINT_BASE_URL` | Custom API endpoint; required for `ollama` (e.g., for self-hosted or local services) | Conditional* | Provider default |
+| `MINT_MODEL_NAME` | LLM model name to use | Optional | Provider default** |
+| `MINT_TARGET_LANG` | Target language(s) - single or comma-separated (e.g. `en`, `en,zh-TW,ja`) | Optional | System locale or `en` |
 
-**Conditional:* Required for `google-genai`, `openai`, `anthropic`; not required for `ollama`.*
-**Default models:* `google-genai`: `gemini-3.1-flash-lite`; `openai`: `gpt-4o-mini`; `anthropic`: `claude-haiku-4-5`; `ollama`: none (must be specified).
+**Conditional:* `MINT_API_KEY` required for `google-genai`, `openai`, `anthropic`; not needed for `ollama`. `MINT_BASE_URL` required for `ollama`.*
+**Default models:* `google-genai`: `gemini-3.1-flash-lite`, `openai`: `gpt-4o-mini`, `anthropic`: `claude-haiku-4-5`; `ollama`: none (must specify).*
 
 ## Conventions
 
@@ -143,11 +143,11 @@ bin/mint                             # compiled binary (gitignored)
 
 ## Key Design Decisions
 
-- CLI framework: `github.com/spf13/cobra` — root command with optional `--to <lang>` flag.
+- CLI framework: `github.com/spf13/cobra` — root command with optional `--target` / `-t` flag.
 - Configuration: `github.com/spf13/viper` — reads env vars with `MINT_` prefix; no config files.
 - LLM backends called directly via raw `net/http` (no heavy SDKs); keeps binary minimal.
 - `Translator` interface in `internal/translator/` allows provider backends without breaking changes.
-- Target language: use `--to <lang>` explicitly, or set `MINT_PRIMARY_LANGUAGE` for smart auto-detection.
-- Smart detection: if `MINT_PRIMARY_LANGUAGE` is set and text is in that language, automatically translate to `MINT_SECONDARY_LANGUAGE`.
+- Target language: use `--target` / `-t` explicitly, or set `MINT_TARGET_LANG` for smart auto-detection with multi-language rotation.
+- Smart detection: if `MINT_TARGET_LANG` is set, automatically detects input language and translates to next target language in rotation.
 - Input from positional arg or stdin (auto-detected).
-- Planned additional backends: OpenAI (`MINT_OPENAI_API_KEY`), Anthropic (`MINT_ANTHROPIC_API_KEY`), Ollama (see roadmap in README).
+- Language rotation: supports comma-separated language list in `MINT_TARGET_LANG` (e.g., `en,zh-TW,ja`); cycles through based on detected input language.

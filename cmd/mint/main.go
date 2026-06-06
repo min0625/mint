@@ -31,7 +31,10 @@ func newRootCmd() *cobra.Command {
 	v.SetEnvPrefix("MINT")
 	v.AutomaticEnv()
 
-	var targetLangFlag string
+	var (
+		targetLangFlag string
+		verboseFlag    bool
+	)
 
 	cmd := &cobra.Command{
 		Use:          "mint [text]",
@@ -41,6 +44,12 @@ func newRootCmd() *cobra.Command {
 		Args:         cobra.MaximumNArgs(1),
 		SilenceUsage: true,
 		RunE: func(_ *cobra.Command, args []string) error {
+			logv := func(format string, a ...any) {
+				if verboseFlag {
+					fmt.Fprintf(os.Stderr, "[mint] "+format+"\n", a...)
+				}
+			}
+
 			// Load configuration from environment variables
 			cfg := provider.Config{
 				Provider:   v.GetString("provider"),
@@ -48,6 +57,16 @@ func newRootCmd() *cobra.Command {
 				BaseURL:    v.GetString("base_url"),
 				ModelName:  v.GetString("model_name"),
 				TargetLang: v.GetString("target_lang"),
+			}
+
+			logv("provider: %s", cfg.Provider)
+
+			if cfg.ModelName != "" {
+				logv("model: %s", cfg.ModelName)
+			}
+
+			if cfg.BaseURL != "" {
+				logv("base_url: %s", cfg.BaseURL)
 			}
 
 			// Create translator
@@ -71,19 +90,28 @@ func newRootCmd() *cobra.Command {
 				return fmt.Errorf("language detection failed: %w", err)
 			}
 
+			logv("detected input language: %q", inputLang)
+
 			// If language-neutral content, output unchanged
 			if inputLang == "" {
+				logv("language-neutral content — outputting unchanged")
 				fmt.Println(text)
+
 				return nil
 			}
 
 			// Determine actual target language
 			actualTargetLang := determineActualTargetLang(inputLang, targetLangs)
 
+			logv("target language: %s", actualTargetLang)
+
 			// Generate appropriate prompt and perform translation
 			var prompt string
+
 			if inputLang == actualTargetLang {
 				// Same language: grammar and spelling correction
+				logv("operation: grammar/spelling correction")
+
 				prompt = fmt.Sprintf(
 					"Fix any grammar and spelling errors in the text inside <text> tags.\n"+
 						"Output ONLY the corrected text — no labels, no explanation, no preamble.\n\n"+
@@ -92,6 +120,7 @@ func newRootCmd() *cobra.Command {
 				)
 			} else {
 				// Different languages: translation
+				logv("operation: translate %s → %s", inputLang, actualTargetLang)
 				prompt = fmt.Sprintf(
 					"Translate the text inside <text> tags from %s to %s.\n"+
 						"Output ONLY the translated text — no labels, no explanation, no preamble.\n\n"+
@@ -113,6 +142,7 @@ func newRootCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&targetLangFlag, "target", "t", "", "target language (BCP-47 tag, e.g. ja, zh-TW, fr)")
+	cmd.Flags().BoolVarP(&verboseFlag, "verbose", "v", false, "print diagnostic info to stderr")
 
 	return cmd
 }
