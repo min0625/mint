@@ -86,20 +86,20 @@ The binary will be available as `mint` in your `$GOPATH/bin` directory (usually 
 Download pre-built binaries directly from [GitHub Releases](https://github.com/min0625/mint/releases):
 
 ```bash
-# Linux x86_64
-curl -L https://github.com/min0625/mint/releases/latest/download/mint_Linux_x86_64.tar.gz \
+# Linux x86_64 (amd64)
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_linux_amd64.tar.gz \
   | tar xz && sudo mv mint /usr/local/bin/
 
 # macOS arm64 (Apple Silicon)
-curl -L https://github.com/min0625/mint/releases/latest/download/mint_Darwin_arm64.tar.gz \
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_darwin_arm64.tar.gz \
   | tar xz && sudo mv mint /usr/local/bin/
 
-# macOS x86_64 (Intel)
-curl -L https://github.com/min0625/mint/releases/latest/download/mint_Darwin_x86_64.tar.gz \
+# macOS x86_64 / Intel (amd64)
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_darwin_amd64.tar.gz \
   | tar xz && sudo mv mint /usr/local/bin/
 
 # Windows x86_64 (PowerShell)
-# Download mint_Windows_x86_64.zip from releases page and extract to a directory in your PATH
+# Download mint_windows_amd64.zip from releases page and extract to a directory in your PATH
 ```
 
 ### Verify Installation

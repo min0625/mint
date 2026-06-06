@@ -86,20 +86,20 @@ go install github.com/min0625/mint/cmd/mint@latest
 直接從 [GitHub Releases](https://github.com/min0625/mint/releases) 下載預編譯的二進位檔：
 
 ```bash
-# Linux x86_64
-curl -L https://github.com/min0625/mint/releases/latest/download/mint_Linux_x86_64.tar.gz \
+# Linux x86_64 (amd64)
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_linux_amd64.tar.gz \
   | tar xz && sudo mv mint /usr/local/bin/
 
 # macOS arm64 (Apple Silicon)
-curl -L https://github.com/min0625/mint/releases/latest/download/mint_Darwin_arm64.tar.gz \
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_darwin_arm64.tar.gz \
   | tar xz && sudo mv mint /usr/local/bin/
 
-# macOS x86_64 (Intel)
-curl -L https://github.com/min0625/mint/releases/latest/download/mint_Darwin_x86_64.tar.gz \
+# macOS x86_64 / Intel (amd64)
+curl -L https://github.com/min0625/mint/releases/latest/download/mint_darwin_amd64.tar.gz \
   | tar xz && sudo mv mint /usr/local/bin/
 
 # Windows x86_64 (PowerShell)
-# 從 releases 頁面下載 mint_Windows_x86_64.zip 並解壓縮到 PATH 中的目錄
+# 從 releases 頁面下載 mint_windows_amd64.zip 並解壓縮到 PATH 中的目錄
 ```
 
 ### 驗證安裝
