@@ -4,14 +4,13 @@
 
 > Minimalist AI Translation CLI — 極簡，快速，直覺。
 
-[![GitHub](https://img.shields.io/badge/GitHub-min0625%2Fmint-blue?logo=github)](https://github.com/min0625/mint)
-[![Go Reference](https://pkg.go.dev/badge/github.com/min0625/mint.svg)](https://pkg.go.dev/github.com/min0625/mint)
+[![GitHub Release](https://img.shields.io/github/v/release/min0625/mint?logo=github)](https://github.com/min0625/mint/releases)
 [![PyPI](https://img.shields.io/pypi/v/mint-ai?logo=pypi&logoColor=white)](https://pypi.org/project/mint-ai/)
 [![npm](https://img.shields.io/npm/v/mint-ai?logo=npm)](https://www.npmjs.com/package/mint-ai)
 
-Mint 是一個輕量的命令列翻譯工具，由 LLM 驅動。
-支援多個 LLM 服務提供商（Google Gemini、OpenAI、Anthropic）及本地 Ollama 模型，
-並提供智慧語言偵測自動翻譯功能。
+Mint 是一款由 LLM 驅動的輕量命令列翻譯工具。
+支援 Google Gemini、OpenAI、Anthropic 及本地 Ollama 等多種提供商，
+並內建智慧語言偵測，可自動翻譯至指定語言。
 
 ---
 
@@ -26,6 +25,12 @@ Mint 是一個輕量的命令列翻譯工具，由 LLM 驅動。
 
 ## 📋 安裝
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew install min0625/tap/mint-ai
+```
+
 ### pipx
 
 ```bash
@@ -38,14 +43,23 @@ pipx install mint-ai
 npm install -g mint-ai
 ```
 
-### 自動安裝（單行指令）
+### 自動安裝
+
+**macOS / Linux**
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"
 ```
 
-自動偵測作業系統與架構（Linux/macOS、x86_64/arm64），
-並安裝到 `~/.local/bin`。可透過 `MINT_INSTALL_DIR` 覆蓋，或用 `MINT_VERSION=v1.0.0` 指定版本。
+自動偵測作業系統與架構（Linux/macOS、x86_64/arm64），安裝到 `~/.local/bin`。可透過 `MINT_INSTALL_DIR` 覆蓋，或用 `MINT_VERSION=v1.0.0` 指定版本。
+
+**Windows（PowerShell）**
+
+```powershell
+irm https://raw.githubusercontent.com/min0625/mint/main/script/install.ps1 | iex
+```
+
+安裝到 `$HOME\.local\bin`。可透過 `$env:MINT_INSTALL_DIR` 覆蓋，或用 `$env:MINT_VERSION = 'v1.0.0'` 指定版本。
 
 ### go install
 

@@ -50,6 +50,29 @@ changelog:
       - Merge pull request
       - Merge branch
 
+homebrew_casks:
+  - name: mint-ai
+    repository:
+      owner: min0625
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Casks
+    binary: mint
+    homepage: "https://github.com/min0625/mint"
+    description: "Minimalist AI translation CLI powered by LLMs"
+    license: "Apache-2.0"
+    url:
+      verified: "github.com/min0625/mint"
+    caveats: |
+      Set your LLM provider before use:
+        export MINT_PROVIDER=google
+        export MINT_API_KEY=your_api_key
+      See https://github.com/min0625/mint for details.
+    commit_msg_template: "Cask update for mint-ai version {{ .Tag }}"
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+
 release:
   draft: false
   prerelease: auto

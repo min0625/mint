@@ -4,8 +4,7 @@
 
 > Minimalist AI Translation CLI — Simple. Fast. Intuitive.
 
-[![GitHub](https://img.shields.io/badge/GitHub-min0625%2Fmint-blue?logo=github)](https://github.com/min0625/mint)
-[![Go Reference](https://pkg.go.dev/badge/github.com/min0625/mint.svg)](https://pkg.go.dev/github.com/min0625/mint)
+[![GitHub Release](https://img.shields.io/github/v/release/min0625/mint?logo=github)](https://github.com/min0625/mint/releases)
 [![PyPI](https://img.shields.io/pypi/v/mint-ai?logo=pypi&logoColor=white)](https://pypi.org/project/mint-ai/)
 [![npm](https://img.shields.io/npm/v/mint-ai?logo=npm)](https://www.npmjs.com/package/mint-ai)
 
@@ -26,6 +25,12 @@ and get fluent translations instantly with optional smart language detection.
 
 ## 📋 Installation
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew install min0625/tap/mint-ai
+```
+
 ### pipx
 
 ```bash
@@ -38,14 +43,23 @@ pipx install mint-ai
 npm install -g mint-ai
 ```
 
-### Automated install (one-liner)
+### Automated install
+
+**macOS / Linux**
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"
 ```
 
-Auto-detects OS and architecture (Linux/macOS, x86_64/arm64),
-and installs to `~/.local/bin`. Override with `MINT_INSTALL_DIR` or pin a version with `MINT_VERSION=v1.0.0`.
+Auto-detects OS and architecture (Linux/macOS, x86_64/arm64), installs to `~/.local/bin`. Override with `MINT_INSTALL_DIR` or pin a version with `MINT_VERSION=v1.0.0`.
+
+**Windows (PowerShell)**
+
+```powershell
+irm https://raw.githubusercontent.com/min0625/mint/main/script/install.ps1 | iex
+```
+
+Installs to `$HOME\.local\bin`. Override with `$env:MINT_INSTALL_DIR` or pin a version with `$env:MINT_VERSION = 'v1.0.0'`.
 
 ### go install
 
@@ -57,7 +71,7 @@ Requires Go 1.21+. Binary lands in `$GOPATH/bin` (usually `~/go/bin`).
 
 ### Manual download
 
-Pre-built binaries at [GitHub Releases](https://github.com/min0625/mint/releases)
+Pre-built binaries are available at [GitHub Releases](https://github.com/min0625/mint/releases)
 
 ### Verify installation
 
