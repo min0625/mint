@@ -27,7 +27,7 @@ archives:
   - id: default
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - none*
     name_template: >-
@@ -57,7 +57,6 @@ homebrew_casks:
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Casks
-    binary: mint
     homepage: "https://github.com/min0625/mint"
     description: "Minimalist AI translation CLI powered by LLMs"
     license: "Apache-2.0"
