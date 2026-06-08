@@ -142,7 +142,7 @@ main() {
     # goreleaser archive name: mint_linux_amd64.tar.gz
     archive="${BINARY}_${os}_${arch}.tar.gz"
     download_url="https://github.com/${REPO}/releases/download/${version}/${archive}"
-    checksum_url="https://github.com/${REPO}/releases/download/${version}/checksums.txt"
+    checksum_url="https://github.com/${REPO}/releases/download/${version}/SHA256SUMS"
 
     tmp_dir="$(mktemp -d)"
     trap "rm -rf '${tmp_dir}' 2>/dev/null" EXIT
@@ -154,9 +154,9 @@ main() {
     # --- verify checksum (if sha256sum / shasum is available) ------------------
     if command -v sha256sum > /dev/null 2>&1 || command -v shasum > /dev/null 2>&1; then
         info "Verifying checksum..."
-        if download "${checksum_url}" "${tmp_dir}/checksums.txt" 2> /dev/null; then
+        if download "${checksum_url}" "${tmp_dir}/SHA256SUMS" 2> /dev/null; then
             local expected actual
-            expected="$(grep "${archive}" "${tmp_dir}/checksums.txt" | awk '{print $1}')"
+            expected="$(grep "${archive}" "${tmp_dir}/SHA256SUMS" | awk '{print $1}')"
             if [[ -n "${expected}" ]]; then
                 if command -v sha256sum > /dev/null 2>&1; then
                     actual="$(sha256sum "${tmp_dir}/${archive}" | awk '{print $1}')"
