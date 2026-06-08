@@ -32,7 +32,7 @@ and installs to `~/.local/bin`. Override with `MINT_INSTALL_DIR` or pin a versio
 go install github.com/min0625/mint/cmd/mint@latest
 ```
 
-Requires Go 1.21+. Binary lands in `$GOPATH/bin` (usually `~/go/bin`).
+Requires Go 1.26.4+. Binary lands in `$GOPATH/bin` (usually `~/go/bin`).
 
 ### Manual download
 
@@ -147,10 +147,10 @@ bin/mint                             # compiled binary (gitignored)
 | `MINT_PROVIDER` | LLM provider: `google-genai`, `openai`, `anthropic`, `ollama` | Yes | — |
 | `MINT_API_KEY` | API key for the chosen provider | Conditional* | — |
 | `MINT_BASE_URL` | Custom API endpoint; required for `ollama` (e.g., for self-hosted or local services) | Conditional* | Provider default |
-| `MINT_MODEL_NAME` | LLM model name to use | Optional | Provider default** |
+| `MINT_MODEL_NAME` | LLM model name to use | Required for `ollama`; optional otherwise | Provider default** |
 | `MINT_TARGET_LANG` | Target language(s) - single or comma-separated (e.g. `en`, `en,zh-TW,ja`) | Optional | System locale or `en` |
 
-**Conditional:* `MINT_API_KEY` required for `google-genai`, `openai`, `anthropic`; not needed for `ollama`. `MINT_BASE_URL` required for `ollama`.*
+**Conditional:* `MINT_API_KEY` required for `google-genai`, `openai`, `anthropic`; not needed for `ollama`. `MINT_BASE_URL` and `MINT_MODEL_NAME` required for `ollama`.*
 **Default models:* `google-genai`: `gemini-3.1-flash-lite`, `openai`: `gpt-4o-mini`, `anthropic`: `claude-haiku-4-5`; `ollama`: none (must specify).*
 
 ## Conventions
@@ -166,11 +166,13 @@ bin/mint                             # compiled binary (gitignored)
 
 ## Key Design Decisions
 
-- CLI framework: `github.com/spf13/cobra` — root command with optional `--target` / `-t` flag.
+- CLI framework: `github.com/spf13/cobra` — root command with `--target` / `-t` (target language) and `--verbose` / `-v` (diagnostic output to stderr) flags.
 - Configuration: `github.com/spf13/viper` — reads env vars with `MINT_` prefix; no config files.
 - LLM backends called directly via raw `net/http` (no heavy SDKs); keeps binary minimal.
 - `Translator` interface in `internal/translator/` allows provider backends without breaking changes.
-- Target language: use `--target` / `-t` explicitly, or set `MINT_TARGET_LANG` for smart auto-detection with multi-language rotation.
-- Smart detection: if `MINT_TARGET_LANG` is set, automatically detects input language and translates to next target language in rotation.
+- Language detection: always runs via LLM before translation; detects BCP-47 tag or `neutral` for language-agnostic content (numbers, symbols).
+- Language-neutral pass-through: if detected language is `neutral`, input is printed unchanged with no translation call.
+- Same-language behavior: if detected input language matches the target language, the tool performs grammar and spelling correction instead of translation.
+- Target language priority: `--target` flag → `MINT_TARGET_LANG` env var → system locale (`$LANG` / `$LC_ALL`) → `en`.
+- Language rotation: `MINT_TARGET_LANG` accepts a comma-separated list (e.g., `en,zh-TW,ja`); when the detected input language matches a tag in the list, the tool translates to the next tag (wraps around). BCP-47 variants sharing the same primary subtag (e.g., `zh-HK` and `zh-TW`) are treated as equivalent.
 - Input from positional arg or stdin (auto-detected).
-- Language rotation: supports comma-separated language list in `MINT_TARGET_LANG` (e.g., `en,zh-TW,ja`); cycles through based on detected input language.
