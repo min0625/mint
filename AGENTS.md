@@ -127,14 +127,13 @@ python/
 
 ```
 cmd/mint/main.go                     # entry point; cobra root command; viper config wiring
-internal/translator/                # Translator interface (translator.Translator)
+internal/llm/llm.go                  # Completer interface for LLM backends
 internal/provider/
   config.go                          # Config struct; provider validation
-  provider.go                        # NewTranslator factory function
-  googlegenai/google_genai.go        # Google Gemini HTTP client (implements Translator)
-  openai/openai.go                   # OpenAI GPT HTTP client (implements Translator)
-  anthropic/anthropic.go             # Anthropic Claude HTTP client (implements Translator)
-  ollama/ollama.go                   # Ollama local LLM HTTP client (implements Translator)
+  provider.go                        # NewCompleter factory function
+  googlegenai/google_genai.go        # Google Gemini HTTP client (implements Completer)
+  openai/openai.go                   # OpenAI GPT HTTP client (implements Completer)
+  anthropic/anthropic.go             # Anthropic Claude HTTP client (implements Completer)
 bin/mint                             # compiled binary (gitignored)
 .goreleaser.yaml                     # GoReleaser multi-platform release configuration
 .github/workflows/release.yml        # GitHub Actions: triggered on v*.*.* tag push
@@ -144,14 +143,18 @@ bin/mint                             # compiled binary (gitignored)
 
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
-| `MINT_PROVIDER` | LLM provider: `google-genai`, `openai`, `anthropic`, `ollama` | Yes | — |
-| `MINT_API_KEY` | API key for the chosen provider | Conditional* | — |
-| `MINT_BASE_URL` | Custom API endpoint; required for `ollama` (e.g., for self-hosted or local services) | Conditional* | Provider default |
-| `MINT_MODEL_NAME` | LLM model name to use | Required for `ollama`; optional otherwise | Provider default** |
+| `MINT_PROVIDER` | LLM provider: `google-genai`, `openai`, `anthropic` | Yes | — |
+| `MINT_API_KEY` | API key for the chosen provider; optional when `MINT_BASE_URL` is set | Conditional* | — |
+| `MINT_BASE_URL` | Custom API base URL (domain only; each provider appends its own path); use with `openai` to target local inference servers — Ollama (`http://localhost:11434`) or LM Studio (`http://localhost:1234`); optional for cloud providers to point to a proxy | Conditional* | Provider default |
+| `MINT_MODEL_NAME` | LLM model name to use | Required when `MINT_BASE_URL` is set; optional otherwise | Provider default** |
 | `MINT_TARGET_LANG` | Target language(s) - single or comma-separated (e.g. `en`, `en,zh-TW,ja`) | Optional | System locale or `en` |
 
-**Conditional:* `MINT_API_KEY` required for `google-genai`, `openai`, `anthropic`; not needed for `ollama`. `MINT_BASE_URL` and `MINT_MODEL_NAME` required for `ollama`.*
-**Default models:* `google-genai`: `gemini-3.1-flash-lite`, `openai`: `gpt-4o-mini`, `anthropic`: `claude-haiku-4-5`; `ollama`: none (must specify).*
+**Conditional:* `MINT_API_KEY` required when using the default endpoint; optional when `MINT_BASE_URL` is set (proxy handles auth).*
+**Default models:* `google-genai`: `gemini-3.1-flash-lite`, `openai`: `gpt-4o-mini`, `anthropic`: `claude-haiku-4-5`.*
+
+## Documentation
+
+- **Multilingual README sync** — `README.md` (English) and `README.zh-TW.md` (Traditional Chinese) must always be kept in sync. Whenever one is updated, apply the equivalent change to the other. New README language variants follow the pattern `README.<locale>.md`.
 
 ## Conventions
 
@@ -169,7 +172,7 @@ bin/mint                             # compiled binary (gitignored)
 - CLI framework: `github.com/spf13/cobra` — root command with `--target` / `-t` (target language) and `--verbose` / `-v` (diagnostic output to stderr) flags.
 - Configuration: `github.com/spf13/viper` — reads env vars with `MINT_` prefix; no config files.
 - LLM backends called directly via raw `net/http` (no heavy SDKs); keeps binary minimal.
-- `Translator` interface in `internal/translator/` allows provider backends without breaking changes.
+- `Completer` interface in `internal/llm/` allows provider backends without breaking changes.
 - Language detection: always runs via LLM before translation; detects BCP-47 tag or `neutral` for language-agnostic content (numbers, symbols).
 - Language-neutral pass-through: if detected language is `neutral`, input is printed unchanged with no translation call.
 - Same-language behavior: if detected input language matches the target language, the tool performs grammar and spelling correction instead of translation.

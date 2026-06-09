@@ -15,25 +15,31 @@ import (
 )
 
 const (
-	apiEndpoint       = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent"
-	streamAPIEndpoint = "https://generativelanguage.googleapis.com/v1beta/models/%s:streamGenerateContent"
+	defaultBaseURL   = "https://generativelanguage.googleapis.com"
+	defaultModelName = "gemini-3.1-flash-lite"
 )
 
 // Client is a Google Gemini API client.
 type Client struct {
 	apiKey     string
+	baseURL    string
 	modelName  string
 	httpClient *http.Client
 }
 
 // New creates a new Google Gemini client.
-func New(apiKey, modelName string) *Client {
+func New(apiKey, baseURL, modelName string) *Client {
 	if modelName == "" {
-		modelName = "gemini-3.1-flash-lite"
+		modelName = defaultModelName
+	}
+
+	if baseURL == "" {
+		baseURL = defaultBaseURL
 	}
 
 	return &Client{
 		apiKey:     apiKey,
+		baseURL:    baseURL,
 		modelName:  modelName,
 		httpClient: &http.Client{},
 	}
@@ -64,13 +70,8 @@ type candidate struct {
 	Content content `json:"content"`
 }
 
-// Translate calls the Google Gemini streaming API and writes tokens to w as they arrive.
-func (c *Client) Translate(ctx context.Context, text, targetLang string, w io.Writer) error {
-	prompt := fmt.Sprintf(
-		"Translate the following text to %s. Output only the translation, nothing else:\n\n%s",
-		targetLang, text,
-	)
-
+// Complete calls the Google Gemini streaming API and writes tokens to w as they arrive.
+func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error {
 	body := requestBody{
 		Contents: []content{
 			{Parts: []part{{Text: prompt}}},
@@ -83,7 +84,7 @@ func (c *Client) Translate(ctx context.Context, text, targetLang string, w io.Wr
 		return fmt.Errorf("marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("%s?alt=sse&key=%s", fmt.Sprintf(streamAPIEndpoint, c.modelName), c.apiKey)
+	url := fmt.Sprintf("%s/v1beta/models/%s:streamGenerateContent?alt=sse&key=%s", c.baseURL, c.modelName, c.apiKey)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
 	if err != nil {
