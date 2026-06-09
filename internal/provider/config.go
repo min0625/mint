@@ -14,7 +14,6 @@ const (
 	ProviderGoogleGenAI = "google-genai"
 	ProviderOpenAI      = "openai"
 	ProviderAnthropic   = "anthropic"
-	ProviderOllama      = "ollama"
 )
 
 // Config holds provider configuration loaded from environment variables.
@@ -34,37 +33,21 @@ func (c *Config) ValidateConfig() error {
 
 	c.Provider = strings.ToLower(c.Provider)
 
-	// Validate provider
-	validProviders := map[string]bool{
-		ProviderGoogleGenAI: true,
-		ProviderOpenAI:      true,
-		ProviderAnthropic:   true,
-		ProviderOllama:      true,
-	}
-	if !validProviders[c.Provider] {
+	switch c.Provider {
+	case ProviderGoogleGenAI, ProviderOpenAI, ProviderAnthropic:
+		// valid
+	default:
 		return fmt.Errorf(
-			"unsupported provider: %s. Supported: %s, %s, %s, %s",
+			"unsupported provider: %s. Supported: %s, %s, %s",
 			c.Provider,
 			ProviderGoogleGenAI,
 			ProviderOpenAI,
 			ProviderAnthropic,
-			ProviderOllama,
 		)
 	}
 
-	// Check API key for non-local providers
-	if c.Provider != ProviderOllama && c.APIKey == "" {
+	if c.BaseURL == "" && c.APIKey == "" {
 		return fmt.Errorf("MINT_API_KEY is required for provider: %s", c.Provider)
-	}
-
-	// Ollama requires BaseURL
-	if c.Provider == ProviderOllama && c.BaseURL == "" {
-		return errors.New("MINT_BASE_URL is required for ollama provider (e.g., http://localhost:11434)")
-	}
-
-	// Ollama requires ModelName
-	if c.Provider == ProviderOllama && c.ModelName == "" {
-		return errors.New("MINT_MODEL_NAME is required for ollama provider")
 	}
 
 	return nil

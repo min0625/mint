@@ -14,7 +14,11 @@ import (
 	"strings"
 )
 
-const defaultAPIEndpoint = "https://api.openai.com/v1/chat/completions"
+const (
+	defaultBaseURL   = "https://api.openai.com"
+	defaultAPIPath   = "/v1/chat/completions"
+	defaultModelName = "gpt-4o-mini"
+)
 
 // Client is an OpenAI API client.
 type Client struct {
@@ -27,11 +31,11 @@ type Client struct {
 // New creates a new OpenAI client.
 func New(apiKey, baseURL, modelName string) *Client {
 	if modelName == "" {
-		modelName = "gpt-4o-mini"
+		modelName = defaultModelName
 	}
 
 	if baseURL == "" {
-		baseURL = defaultAPIEndpoint
+		baseURL = defaultBaseURL
 	}
 
 	return &Client{
@@ -66,13 +70,8 @@ type streamResponse struct {
 	Choices []streamChoice `json:"choices"`
 }
 
-// Translate calls the OpenAI API with streaming and writes tokens to w as they arrive.
-func (c *Client) Translate(ctx context.Context, text, targetLang string, w io.Writer) error {
-	prompt := fmt.Sprintf(
-		"Translate the following text to %s. Output only the translation, nothing else:\n\n%s",
-		targetLang, text,
-	)
-
+// Complete calls the OpenAI API with streaming and writes tokens to w as they arrive.
+func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error {
 	body := requestBody{
 		Model:       c.modelName,
 		Messages:    []message{{Role: "user", Content: prompt}},
@@ -85,7 +84,7 @@ func (c *Client) Translate(ctx context.Context, text, targetLang string, w io.Wr
 		return fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+defaultAPIPath, bytes.NewReader(jsonBody))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}

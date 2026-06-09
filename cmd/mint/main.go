@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/min0625/mint/internal/llm"
 	"github.com/min0625/mint/internal/provider"
-	"github.com/min0625/mint/internal/translator"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -44,7 +44,7 @@ func newRootCmd() *cobra.Command {
 		Version:      fmt.Sprintf("%s (commit: %s)", version, commit),
 		Args:         cobra.MaximumNArgs(1),
 		SilenceUsage: true,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			logv := func(format string, a ...any) {
 				if verboseFlag {
 					fmt.Fprintf(os.Stderr, "[mint] "+format+"\n", a...)
@@ -70,8 +70,9 @@ func newRootCmd() *cobra.Command {
 				logv("base_url: %s", cfg.BaseURL)
 			}
 
-			// Create translator
-			t, err := provider.NewTranslator(context.Background(), cfg)
+			ctx := cmd.Context()
+
+			t, err := provider.NewCompleter(cfg)
 			if err != nil {
 				return err
 			}
@@ -86,7 +87,7 @@ func newRootCmd() *cobra.Command {
 			targetLangs := resolveTargetLangs(targetLangFlag, cfg.TargetLang)
 
 			// Detect input language
-			inputLang, err := detectLanguage(context.Background(), t, text)
+			inputLang, err := detectLanguage(ctx, t, text)
 			if err != nil {
 				return fmt.Errorf("language detection failed: %w", err)
 			}
@@ -130,8 +131,7 @@ func newRootCmd() *cobra.Command {
 				)
 			}
 
-			// Perform translation
-			if err := t.Translate(context.Background(), prompt, actualTargetLang, os.Stdout); err != nil {
+			if err := t.Complete(ctx, prompt, os.Stdout); err != nil {
 				return fmt.Errorf("translation failed: %w", err)
 			}
 
@@ -175,8 +175,8 @@ func resolveTargetLangs(flagLang, configLang string) []string {
 		// Remove any whitespace and normalize
 		flagLang = strings.ToLower(strings.TrimSpace(flagLang))
 		// Flag should not contain commas - use only the first part if present
-		if idx := strings.Index(flagLang, ","); idx != -1 {
-			flagLang = flagLang[:idx]
+		if first, _, found := strings.Cut(flagLang, ","); found {
+			flagLang = first
 		}
 
 		return []string{flagLang}
@@ -204,18 +204,18 @@ func resolveTargetLangs(flagLang, configLang string) []string {
 
 // getSystemLanguage gets the system language from the OS locale.
 func getSystemLanguage() string {
-	// Try LANG environment variable
-	if lang := os.Getenv("LANG"); lang != "" {
-		// Extract language code (e.g., "en_US.UTF-8" -> "en")
-		if parts := strings.Split(lang, "_"); len(parts) > 0 {
-			return parts[0]
-		}
-	}
+	for _, env := range []string{"LANG", "LC_ALL"} {
+		if lang := os.Getenv(env); lang != "" {
+			// Strip encoding suffix before cutting on "_":
+			// "C.UTF-8" → "C"; "en_US.UTF-8" → "en_US" (no change here)
+			lang, _, _ = strings.Cut(lang, ".")
+			// Extract primary language subtag: "en_US" → "en"; ignore "C" / "POSIX"
+			code, _, _ := strings.Cut(lang, "_")
+			if code == "" || code == "C" || code == "POSIX" {
+				continue
+			}
 
-	// Try LC_ALL environment variable
-	if lang := os.Getenv("LC_ALL"); lang != "" {
-		if parts := strings.Split(lang, "_"); len(parts) > 0 {
-			return parts[0]
+			return code
 		}
 	}
 
@@ -224,15 +224,14 @@ func getSystemLanguage() string {
 
 // detectLanguage detects the language of the input text.
 // Returns empty string if the input is language-neutral (e.g., numbers, symbols).
-func detectLanguage(ctx context.Context, t translator.Translator, text string) (string, error) {
-	// Use LLM to detect language
+func detectLanguage(ctx context.Context, t llm.Completer, text string) (string, error) {
 	prompt := "Detect the dominant language of the text inside <text> tags.\n" +
 		"Reply with ONLY the BCP-47 language tag (e.g. en, zh-TW, ja) — no quotes, no punctuation, no explanation.\n" +
 		"If the text contains only numbers, symbols, or other language-neutral content, reply with: neutral\n\n" +
 		"<text>\n" + text + "\n</text>"
 
 	var buf bytes.Buffer
-	if err := t.Translate(ctx, prompt, "en", &buf); err != nil {
+	if err := t.Complete(ctx, prompt, &buf); err != nil {
 		return "", err
 	}
 
@@ -253,8 +252,8 @@ func langMatches(a, b string) bool {
 		return true
 	}
 
-	primaryA := strings.SplitN(a, "-", 2)[0]
-	primaryB := strings.SplitN(b, "-", 2)[0]
+	primaryA, _, _ := strings.Cut(a, "-")
+	primaryB, _, _ := strings.Cut(b, "-")
 
 	return primaryA == primaryB
 }

@@ -8,18 +8,27 @@
 [![PyPI](https://img.shields.io/pypi/v/mint-ai?logo=pypi&logoColor=white)](https://pypi.org/project/mint-ai/)
 [![npm](https://img.shields.io/npm/v/mint-ai?logo=npm)](https://www.npmjs.com/package/mint-ai)
 
-Mint is a lightweight, LLM-powered translation tool for the command line.
-Choose your provider (Google Gemini, OpenAI, Anthropic, or local Ollama)
-and get fluent translations instantly with optional smart language detection.
+Mint is a single-binary, LLM-powered translation CLI. Set two environment variables and translate anything from the command line — files, piped output, or inline text. Built-in language detection, grammar correction, streaming output, and multi-language rotation.
+
+```bash
+export MINT_PROVIDER=google-genai
+export MINT_API_KEY=your_key
+
+mint -t ja "Good morning"         # おはようございます
+echo "早安" | mint -t en          # Good morning
+cat document.txt | mint -t fr     # translate a whole file
+```
 
 ---
 
 ## ✨ Why Mint?
 
-- **Minimal** — One command, no noise
-- **Multi-provider** — Google Gemini, OpenAI, Anthropic, or local Ollama
-- **Flexible** — Any language pair; smart auto-detection optional
-- **Composable** — Pipe-friendly stdin/stdout, fits any workflow
+- **Zero-config** — Single binary; API keys via env vars, no config file pollution
+- **Multi-provider** — Google Gemini, OpenAI, Anthropic, or local Ollama / LM Studio
+- **Smart detection** — Auto-detects language on every call; language-neutral content (numbers, symbols) passes through unchanged
+- **Smart correction** — Same-language input? Auto-corrects grammar & spelling instead of translating
+- **Streaming** — Output streams in real-time, no waiting for long translations
+- **Composable** — Pipe-friendly stdin/stdout; pairs seamlessly with `grep`, `sed`, `xargs`, and friends
 
 ---
 
@@ -67,13 +76,11 @@ Installs to `$HOME\.local\bin`. Override with `$env:MINT_INSTALL_DIR` or pin a v
 go install github.com/min0625/mint/cmd/mint@latest
 ```
 
-Requires Go 1.21+. Binary lands in `$GOPATH/bin` (usually `~/go/bin`).
+Requires Go 1.26+. Binary lands in `$GOPATH/bin` (usually `~/go/bin`).
 
 ### Manual download
 
 Pre-built binaries are available at [GitHub Releases](https://github.com/min0625/mint/releases)
-
-### Verify installation
 
 ```bash
 mint --version
@@ -98,10 +105,15 @@ export MINT_API_KEY=sk-...
 export MINT_PROVIDER=anthropic
 export MINT_API_KEY=sk-ant-...
 
-# Local Ollama (no API key needed)
-export MINT_PROVIDER=ollama
+# Ollama (no API key needed)
+export MINT_PROVIDER=openai
 export MINT_BASE_URL=http://localhost:11434
-export MINT_MODEL_NAME=llama2
+export MINT_MODEL_NAME=qwen2.5:7b  # use any model loaded in Ollama
+
+# LM Studio (no API key needed)
+export MINT_PROVIDER=openai
+export MINT_BASE_URL=http://localhost:1234
+export MINT_MODEL_NAME=lmstudio-community/Qwen2.5-7B-Instruct-GGUF  # use any model loaded in LM Studio
 ```
 
 ### 2. Translate
@@ -114,18 +126,47 @@ echo "The quick brown fox" | mint -t fr
 cat document.txt | mint -t zh-TW
 ```
 
+Use `--verbose` / `-v` to print diagnostic info (detected language, provider, model) to stderr:
+
+```bash
+mint -t ja -v "Good morning"
+# [mint] provider=google-genai model=gemini-3.1-flash-lite detected=en target=ja
+# おはようございます
+```
+
 ### 3. Smart language detection
+
+**Translation with auto-detection:**
 
 ```bash
 export MINT_TARGET_LANG=en
-mint "早安"             # Detects Chinese → translates to en
-mint "Good mooorning"  # Detects English → corrects grammar & spelling
 
-# Rotate across multiple targets
+mint "早安"   # Detects Chinese → Good morning
+```
+
+**Grammar & spelling correction** — when input language matches the target, Mint corrects instead of translates:
+
+```bash
+export MINT_TARGET_LANG=en
+
+mint "Good mooorning"          # Detects English → Good morning
+mint "She don't know nothing"  # Detects English → She doesn't know anything
+mint "i luv coding"            # Detects English → I love coding
+```
+
+**Language rotation** — translates to the next language in the list, wrapping around:
+
+```bash
+# Two languages
+export MINT_TARGET_LANG=en,zh-TW
+mint "Hello"   # en → zh-TW: 你好
+mint "你好"    # zh-TW → en: Hello
+
+# Three languages
 export MINT_TARGET_LANG=en,zh-TW,ja
-mint "Hello"       # → zh-TW
-mint "你好"        # → ja
-mint "こんにちは"   # → en
+mint "Hello"       # en → zh-TW: 你好
+mint "你好"        # zh-TW → ja: こんにちは
+mint "こんにちは"   # ja → en: Hello
 ```
 
 ---
@@ -134,31 +175,20 @@ mint "こんにちは"   # → en
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MINT_PROVIDER` | `google-genai` \| `openai` \| `anthropic` \| `ollama` | — (required) |
-| `MINT_API_KEY` | API key (required for all providers except `ollama`) | — |
-| `MINT_BASE_URL` | Custom endpoint (required for `ollama`) | Provider default |
-| `MINT_MODEL_NAME` | Model to use | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` / none |
-| `MINT_TARGET_LANG` | Target language(s), e.g. `en` or `en,zh-TW,ja` | System locale or `en` |
-
----
-
-## 🎯 Design Principles
-
-| Principle | Description |
-|-----------|-------------|
-| Zero-dependency install | Single binary, works out of the box |
-| Multi-provider | Supports major LLM services plus local alternatives |
-| Composability | Pairs seamlessly with `grep`, `sed`, `xargs`, and friends |
-| Transparent output | Results to stdout, errors to stderr |
-| Environment-friendly | API keys via env vars, no config file pollution |
+| `MINT_PROVIDER` | `google-genai` \| `openai` \| `anthropic` | — (required) |
+| `MINT_API_KEY` | API key; required when using the default endpoint; optional when `MINT_BASE_URL` is set (proxy handles auth) | — |
+| `MINT_BASE_URL` | Custom API base URL (domain only; each provider appends its own path); use with `openai` to target Ollama (`http://localhost:11434`), LM Studio (`http://localhost:1234`), or any other OpenAI-compatible endpoint | Provider default |
+| `MINT_MODEL_NAME` | Model to use | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` |
+| `MINT_TARGET_LANG` | Target language(s), e.g. `en` or `en,zh-TW,ja` | System locale |
 
 ---
 
 ## 🗺 Roadmap
 
-- [x] Multi-LLM provider support (Google Gemini, OpenAI, Anthropic, Ollama)
+- [x] Multi-LLM provider support (Google Gemini, OpenAI, Anthropic, local via Ollama / LM Studio)
 - [x] Smart language detection and multi-language rotation via `MINT_TARGET_LANG`
 - [x] Explicit target language via `--target` / `-t` flag
+- [x] Streaming output
 - [x] GoReleaser multi-platform binary release (Linux / macOS / Windows)
 - [ ] Batch translation mode
 - [ ] Glossary / custom dictionary support

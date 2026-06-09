@@ -15,8 +15,10 @@ import (
 )
 
 const (
-	defaultAPIEndpoint = "https://api.anthropic.com/v1/messages"
-	anthropicVersion   = "2023-06-01"
+	defaultBaseURL   = "https://api.anthropic.com"
+	defaultAPIPath   = "/v1/messages"
+	defaultModelName = "claude-haiku-4-5"
+	anthropicVersion = "2023-06-01"
 )
 
 // Client is an Anthropic Claude API client.
@@ -30,11 +32,11 @@ type Client struct {
 // New creates a new Anthropic client.
 func New(apiKey, baseURL, modelName string) *Client {
 	if modelName == "" {
-		modelName = "claude-haiku-4-5"
+		modelName = defaultModelName
 	}
 
 	if baseURL == "" {
-		baseURL = defaultAPIEndpoint
+		baseURL = defaultBaseURL
 	}
 
 	return &Client{
@@ -67,13 +69,8 @@ type streamEvent struct {
 	Delta streamDelta `json:"delta"`
 }
 
-// Translate calls the Anthropic API with streaming and writes tokens to w as they arrive.
-func (c *Client) Translate(ctx context.Context, text, targetLang string, w io.Writer) error {
-	prompt := fmt.Sprintf(
-		"Translate the following text to %s. Output only the translation, nothing else:\n\n%s",
-		targetLang, text,
-	)
-
+// Complete calls the Anthropic API with streaming and writes tokens to w as they arrive.
+func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error {
 	body := requestBody{
 		Model:     c.modelName,
 		MaxTokens: 1024,
@@ -86,7 +83,7 @@ func (c *Client) Translate(ctx context.Context, text, targetLang string, w io.Wr
 		return fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+defaultAPIPath, bytes.NewReader(jsonBody))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
