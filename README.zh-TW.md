@@ -68,7 +68,7 @@ npm install -g mint-ai
 irm https://raw.githubusercontent.com/min0625/mint/main/script/install.ps1 | iex
 ```
 
-安裝到 `$HOME\.local\bin`。可透過 `$env:MINT_INSTALL_DIR` 覆蓋，或用 `$env:MINT_VERSION = 'v1.0.0'` 指定版本。
+自動偵測架構（x86_64/arm64），安裝到 `$HOME\.local\bin`。可透過 `$env:MINT_INSTALL_DIR` 覆蓋，或用 `$env:MINT_VERSION = 'v1.0.0'` 指定版本。
 
 ### go install
 

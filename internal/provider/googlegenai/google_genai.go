@@ -17,6 +17,9 @@ import (
 const (
 	defaultBaseURL   = "https://generativelanguage.googleapis.com"
 	defaultModelName = "gemini-3.1-flash-lite"
+	// maxScanLineBytes raises bufio.Scanner's default 64KB line limit so a
+	// large SSE data line or error body does not abort the stream early.
+	maxScanLineBytes = 1 << 20
 )
 
 // Client is a Google Gemini API client.
@@ -84,7 +87,7 @@ func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error
 		return fmt.Errorf("marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/v1beta/models/%s:streamGenerateContent?alt=sse&key=%s", c.baseURL, c.modelName, c.apiKey)
+	url := fmt.Sprintf("%s/v1beta/models/%s:streamGenerateContent?alt=sse", c.baseURL, c.modelName)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
 	if err != nil {
@@ -92,6 +95,11 @@ func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	// Pass the API key via header rather than the URL query string so it does
+	// not leak into proxy or server access logs.
+	if c.apiKey != "" {
+		req.Header.Set("X-Goog-Api-Key", c.apiKey)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -105,6 +113,8 @@ func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), maxScanLineBytes)
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		if !strings.HasPrefix(line, "data: ") {

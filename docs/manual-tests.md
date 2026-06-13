@@ -80,7 +80,7 @@ mint "這是一顆蘋果。"          # This is an apple.（zh-TW 輸入 → 下
 ```sh
 export MINT_TARGET_LANG=zh-TW,en,ja
 
-mint "This is an apple."      # 這是一顆蘋果。（en 輸入 → 下一個 zh-TW）
+mint "This is an apple."      # 這是一顆蘋果。（en 輸入 → 下一個 ja）
 mint "這是一顆蘋果。"          # This is an apple.（zh-TW 輸入 → 下一個 en）
 mint "これはリンゴです。"      # 這是一顆蘋果。（ja 輸入 → 下一個 zh-TW）
 ```

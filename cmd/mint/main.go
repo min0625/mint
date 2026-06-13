@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"unicode"
 
 	"github.com/min0625/mint/internal/llm"
 	"github.com/min0625/mint/internal/provider"
@@ -21,10 +24,32 @@ var (
 	commit  = "unknown"
 )
 
+// neutralLang is the sentinel the language-detection prompt returns for
+// language-neutral input (numbers, symbols, etc.).
+const neutralLang = "neutral"
+
 func main() {
-	if err := newRootCmd().Execute(); err != nil {
-		os.Exit(1)
+	os.Exit(run())
+}
+
+func run() int {
+	// No request timeout: the CLI waits as long as the backend needs (handy for
+	// slow local models). Ctrl+C / SIGTERM cancels the in-flight request.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := newRootCmd().ExecuteContext(ctx); err != nil {
+		if errors.Is(err, context.Canceled) {
+			// Interrupted by the user — exit quietly with the conventional code.
+			return 130
+		}
+
+		fmt.Fprintln(os.Stderr, "Error:", err)
+
+		return 1
 	}
+
+	return 0
 }
 
 func newRootCmd() *cobra.Command {
@@ -38,12 +63,13 @@ func newRootCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:          "mint [text]",
-		Short:        "Minimalist AI translation CLI",
-		Long:         "Mint is a lightweight, LLM-powered translation tool for the command line.",
-		Version:      fmt.Sprintf("%s (commit: %s)", version, commit),
-		Args:         cobra.MaximumNArgs(1),
-		SilenceUsage: true,
+		Use:           "mint [text]",
+		Short:         "Minimalist AI translation CLI",
+		Long:          "Mint is a lightweight, LLM-powered translation tool for the command line.",
+		Version:       fmt.Sprintf("%s (commit: %s)", version, commit),
+		Args:          cobra.MaximumNArgs(1),
+		SilenceUsage:  true,
+		SilenceErrors: true, // main() prints errors so Ctrl+C can exit quietly
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logv := func(format string, a ...any) {
 				if verboseFlag {
@@ -107,29 +133,22 @@ func newRootCmd() *cobra.Command {
 
 			logv("target language: %s", actualTargetLang)
 
-			// Generate appropriate prompt and perform translation
-			var prompt string
+			// Always rewrite the input in the target language, correcting grammar
+			// and spelling along the way. This single prompt covers every case
+			// without branching on whether input and target "match":
+			//   - cross-language (en → zh-TW): translate + correct
+			//   - same language (zh-TW → zh-TW): correct in place
+			//   - same language, different script (zh-CN → zh-TW): convert + correct
+			// Anchoring on the target tag also pins the output script, so the
+			// model can't drift into the wrong variant (e.g. Simplified for zh-TW).
+			logv("operation: rewrite %s → %s (translate + correct)", inputLang, actualTargetLang)
 
-			if inputLang == actualTargetLang {
-				// Same language: grammar and spelling correction
-				logv("operation: grammar/spelling correction")
-
-				prompt = fmt.Sprintf(
-					"Fix any grammar and spelling errors in the text inside <text> tags.\n"+
-						"Output ONLY the corrected text — no labels, no explanation, no preamble.\n\n"+
-						"<text>\n%s\n</text>",
-					text,
-				)
-			} else {
-				// Different languages: translation
-				logv("operation: translate %s → %s", inputLang, actualTargetLang)
-				prompt = fmt.Sprintf(
-					"Translate the text inside <text> tags from %s to %s.\n"+
-						"Output ONLY the translated text — no labels, no explanation, no preamble.\n\n"+
-						"<text>\n%s\n</text>",
-					inputLang, actualTargetLang, text,
-				)
-			}
+			prompt := fmt.Sprintf(
+				"Rewrite the text inside <text> tags in %s, correcting any grammar and spelling errors.\n"+
+					"Output ONLY the resulting text — no labels, no explanation, no preamble.\n\n"+
+					"<text>\n%s\n</text>",
+				actualTargetLang, text,
+			)
 
 			if err := t.Complete(ctx, prompt, os.Stdout); err != nil {
 				return fmt.Errorf("translation failed: %w", err)
@@ -148,6 +167,10 @@ func newRootCmd() *cobra.Command {
 // resolveInput returns the text to translate from positional args or stdin.
 func resolveInput(args []string) (string, error) {
 	if len(args) > 0 {
+		if strings.TrimSpace(args[0]) == "" {
+			return "", errors.New("no input text provided")
+		}
+
 		return args[0], nil
 	}
 
@@ -157,7 +180,7 @@ func resolveInput(args []string) (string, error) {
 	}
 
 	text := strings.TrimRight(string(data), "\n")
-	if text == "" {
+	if strings.TrimSpace(text) == "" {
 		return "", errors.New("no input text provided")
 	}
 
@@ -235,18 +258,36 @@ func detectLanguage(ctx context.Context, t llm.Completer, text string) (string, 
 		return "", err
 	}
 
-	lang := strings.ToLower(strings.TrimSpace(buf.String()))
-	if lang == "neutral" {
+	lang := normalizeDetectedLang(buf.String())
+	if lang == neutralLang {
 		return "", nil
 	}
 
 	return lang, nil
 }
 
-// langMatches returns true if two BCP-47 language tags are considered equivalent.
-// Exact matches are preferred; otherwise tags sharing the same primary language
+// normalizeDetectedLang coerces the model's free-form reply into a bare
+// language tag. Models occasionally wrap the tag in quotes, add trailing
+// punctuation, or append an explanation; we keep only the first token and
+// strip surrounding noise so downstream tag comparisons stay reliable.
+func normalizeDetectedLang(raw string) string {
+	lang := strings.ToLower(strings.TrimSpace(raw))
+
+	// Keep only the first whitespace-delimited token (drops any explanation).
+	if i := strings.IndexFunc(lang, unicode.IsSpace); i != -1 {
+		lang = lang[:i]
+	}
+
+	// Strip surrounding quotes/backticks and trailing punctuation.
+	return strings.Trim(lang, "\"'`.,!?;:")
+}
+
+// langMatches reports whether two BCP-47 tags should occupy the same slot during
+// target-language rotation. Exact matches aside, tags sharing the same primary
 // subtag (the part before the first "-") are treated as equivalent so that, for
-// example, "zh-HK" matches "zh-TW" because both share the primary subtag "zh".
+// example, "zh-HK" and "zh-TW" rotate as one slot. This is purely a rotation
+// concern — the actual rewrite always targets the configured tag, correcting
+// grammar regardless of how close the input language already is.
 func langMatches(a, b string) bool {
 	if a == b {
 		return true

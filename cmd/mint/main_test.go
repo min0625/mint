@@ -104,6 +104,50 @@ func TestResolveTargetLangsDefaultEn(t *testing.T) {
 	}
 }
 
+func TestNormalizeDetectedLang(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{"plain tag", "en", "en"},
+		{"trims whitespace", "  zh-TW \n", langZhTw},
+		{"lowercases", "JA", "ja"},
+		{"strips quotes", `"fr"`, "fr"},
+		{"strips backticks", "`de`", "de"},
+		{"strips trailing punctuation", "en.", "en"},
+		{"keeps first token only", "en (English)", "en"},
+		{"explanatory sentence", "The language is fr", "the"},
+		{"neutral passes through", neutralLang, neutralLang},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := normalizeDetectedLang(tt.raw); got != tt.want {
+				t.Errorf("normalizeDetectedLang(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveInput(t *testing.T) {
+	t.Run("positional arg used directly", func(t *testing.T) {
+		got, err := resolveInput([]string{"hello"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if got != "hello" {
+			t.Errorf("got %q, want %q", got, "hello")
+		}
+	})
+
+	t.Run("blank positional arg is rejected", func(t *testing.T) {
+		if _, err := resolveInput([]string{"   "}); err == nil {
+			t.Error("expected error for blank arg, got nil")
+		}
+	})
+}
+
 func TestGetSystemLanguage(t *testing.T) {
 	tests := []struct {
 		name  string

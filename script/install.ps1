@@ -29,10 +29,11 @@ function Write-Warn    { param($Msg) Write-Host "[!]  $Msg" -ForegroundColor Yel
 
 function Get-Arch {
     $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
-    if ($arch -ne 'X64') {
-        throw "Unsupported architecture: $arch. Only x86_64 (amd64) is supported on Windows."
+    switch ($arch) {
+        'X64'   { return 'amd64' }
+        'Arm64' { return 'arm64' }
+        default { throw "Unsupported architecture: $arch. Only x86_64 (amd64) and arm64 are supported on Windows." }
     }
-    return 'amd64'
 }
 
 function Get-LatestVersion {

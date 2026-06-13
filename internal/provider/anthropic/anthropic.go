@@ -19,6 +19,11 @@ const (
 	defaultAPIPath   = "/v1/messages"
 	defaultModelName = "claude-haiku-4-5"
 	anthropicVersion = "2023-06-01"
+	maxTokens        = 8192
+	temperature      = 0.3
+	// maxScanLineBytes raises bufio.Scanner's default 64KB line limit so a
+	// large SSE data line or error body does not abort the stream early.
+	maxScanLineBytes = 1 << 20
 )
 
 // Client is an Anthropic Claude API client.
@@ -48,10 +53,11 @@ func New(apiKey, baseURL, modelName string) *Client {
 }
 
 type requestBody struct {
-	Model     string    `json:"model"`
-	MaxTokens int       `json:"max_tokens"`
-	Messages  []message `json:"messages"`
-	Stream    bool      `json:"stream"`
+	Model       string    `json:"model"`
+	MaxTokens   int       `json:"max_tokens"`
+	Temperature float64   `json:"temperature"`
+	Messages    []message `json:"messages"`
+	Stream      bool      `json:"stream"`
 }
 
 type message struct {
@@ -72,10 +78,11 @@ type streamEvent struct {
 // Complete calls the Anthropic API with streaming and writes tokens to w as they arrive.
 func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error {
 	body := requestBody{
-		Model:     c.modelName,
-		MaxTokens: 1024,
-		Messages:  []message{{Role: "user", Content: prompt}},
-		Stream:    true,
+		Model:       c.modelName,
+		MaxTokens:   maxTokens,
+		Temperature: temperature,
+		Messages:    []message{{Role: "user", Content: prompt}},
+		Stream:      true,
 	}
 
 	jsonBody, err := json.Marshal(body)
@@ -104,6 +111,8 @@ func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), maxScanLineBytes)
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		if !strings.HasPrefix(line, "data: ") {
