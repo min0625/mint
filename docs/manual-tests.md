@@ -6,11 +6,20 @@ Assumes `MINT_PROVIDER` and `MINT_API_KEY` are already set in the environment.
 **Debugging tip:** add `-v` / `--verbose` to any command to print diagnostic info to stderr.
 Use it first whenever output is unexpected:
 
+Single-target mode (the common case with `--target` or a single `MINT_TARGET_LANG`):
+
+```
+[mint] provider: google-genai
+[mint] single target — skipping language detection
+[mint] target language: zh-TW
+```
+
+Multi-target mode (language rotation with `MINT_TARGET_LANG=zh-TW,en,...`):
+
 ```
 [mint] provider: google-genai
 [mint] detected input language: "en"
 [mint] target language: zh-TW
-[mint] operation: rewrite en → zh-TW (translate + correct)
 ```
 
 ---
@@ -74,7 +83,7 @@ mint "這是一顆蘋果。"          # これはリンゴです。
 ## 5. Same-language: spelling and grammar correction
 
 When the detected input language matches the target, the tool corrects rather than translates.
-`-v` confirms: `operation: rewrite en → en (translate + correct)`.
+`-v` shows `single target — skipping language detection` and `target language: en`.
 
 ```sh
 export MINT_TARGET_LANG=en
@@ -102,16 +111,22 @@ mint "這係一個蘋果"            # 這是一個蘋果
 mint "这是一个苹果"            # 這是一個蘋果
 ```
 
-`-v` shows: `operation: rewrite zh-hk → zh-TW (translate + correct)` — even though it's
-standardization, not cross-language translation.
+`-v` shows `single target — skipping language detection` and `target language: zh-tw` — the
+rewrite prompt handles standardization without needing to detect the input language first.
 
 > **Rotation note:** in a multi-language list (e.g. `zh-TW,en`), zh-HK input occupies
-> the zh-TW slot and rotates to `en`, not to `zh-TW`. See section 8 below.
+> the zh-TW slot and rotates to `en`, not to `zh-TW`. In multi-target mode `-v` confirms:
+> `detected input language: "zh-hk"` → `target language: en`. See section 9 below.
 
 ## 7. Language-neutral pass-through
 
-Numbers, symbols, and other language-agnostic content are printed unchanged with no
-LLM translation call. `-v` confirms: `language-neutral content — outputting unchanged`.
+Numbers, symbols, and other language-agnostic content are printed unchanged with no LLM call.
+`-v` confirms: `language-neutral content — outputting unchanged`.
+
+- **Single-target mode** (`-t` or single `MINT_TARGET_LANG`): a local heuristic (no letters
+  in the text) detects neutral content before any LLM call is made.
+- **Multi-target mode** (rotation list): language detection runs first; if the model returns
+  `neutral`, the text is output immediately with no second LLM call.
 
 ```sh
 mint -t zh-TW "42"        # 42

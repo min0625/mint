@@ -112,37 +112,60 @@ func newRootCmd() *cobra.Command {
 			// Resolve target languages based on priority
 			targetLangs := resolveTargetLangs(targetLangFlag, cfg.TargetLang)
 
-			// Detect input language
-			inputLang, err := detectLanguage(ctx, t, text)
-			if err != nil {
-				return fmt.Errorf("language detection failed: %w", err)
-			}
-
-			logv("detected input language: %q", inputLang)
-
-			// If language-neutral content, output unchanged
-			if inputLang == "" {
-				logv("language-neutral content — outputting unchanged")
-				fmt.Println(text)
-
-				return nil
-			}
-
-			// Determine actual target language
-			actualTargetLang := determineActualTargetLang(inputLang, targetLangs)
-
-			logv("target language: %s", actualTargetLang)
-
-			// Always rewrite the input in the target language, correcting grammar
-			// and spelling along the way. This single prompt covers every case
-			// without branching on whether input and target "match":
+			// Determine the target language.
+			//
+			// Single target (the common case — always so with --target): skip the
+			// separate detection call; the unified rewrite prompt handles every case
+			// without needing to know the input language —
 			//   - cross-language (en → zh-TW): translate + correct
 			//   - same language (zh-TW → zh-TW): correct in place
 			//   - same language, different script (zh-CN → zh-TW): convert + correct
-			// Anchoring on the target tag also pins the output script, so the
-			// model can't drift into the wrong variant (e.g. Simplified for zh-TW).
-			logv("operation: rewrite %s → %s (translate + correct)", inputLang, actualTargetLang)
+			// Language-neutral content is caught by a local heuristic before any LLM
+			// call, so we halve latency and token cost for every translation.
+			//
+			// Rotation (multiple targets): we must know the input language to
+			// pick the *next* tag in the list, so detection still runs here.
+			var actualTargetLang string
 
+			if len(targetLangs) == 1 {
+				// Short-circuit for language-neutral content (no letters): no LLM
+				// call needed — output unchanged, same as the multi-target path.
+				if isLangNeutral(text) {
+					logv("language-neutral content — outputting unchanged")
+					fmt.Println(text)
+
+					return nil
+				}
+
+				actualTargetLang = targetLangs[0]
+
+				logv("single target — skipping language detection")
+			} else {
+				inputLang, err := detectLanguage(ctx, t, text)
+				if err != nil {
+					return fmt.Errorf("language detection failed: %w", err)
+				}
+
+				logv("detected input language: %q", inputLang)
+
+				// Language-neutral content (numbers, symbols): output unchanged,
+				// no rewrite call needed.
+				if inputLang == "" {
+					logv("language-neutral content — outputting unchanged")
+					fmt.Println(text)
+
+					return nil
+				}
+
+				actualTargetLang = determineActualTargetLang(inputLang, targetLangs)
+			}
+
+			logv("target language: %s", actualTargetLang)
+
+			// Rewrite the input in the target language, correcting grammar and
+			// spelling along the way. Anchoring on the target tag also pins the
+			// output script, so the model can't drift into the wrong variant
+			// (e.g. Simplified for zh-TW).
 			prompt := fmt.Sprintf(
 				"Rewrite the text inside <text> tags in %s, correcting any grammar and spelling errors.\n"+
 					"Output ONLY the resulting text — no labels, no explanation, no preamble.\n\n"+
@@ -243,6 +266,18 @@ func getSystemLanguage() string {
 	}
 
 	return ""
+}
+
+// isLangNeutral reports whether text contains no letters (pure numbers, symbols,
+// punctuation, whitespace, etc.) and therefore needs no translation.
+func isLangNeutral(text string) bool {
+	for _, r := range text {
+		if unicode.IsLetter(r) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // detectLanguage detects the language of the input text.
