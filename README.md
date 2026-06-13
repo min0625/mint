@@ -68,7 +68,7 @@ Auto-detects OS and architecture (Linux/macOS, x86_64/arm64), installs to `~/.lo
 irm https://raw.githubusercontent.com/min0625/mint/main/script/install.ps1 | iex
 ```
 
-Installs to `$HOME\.local\bin`. Override with `$env:MINT_INSTALL_DIR` or pin a version with `$env:MINT_VERSION = 'v1.0.0'`.
+Auto-detects architecture (x86_64/arm64) and installs to `$HOME\.local\bin`. Override with `$env:MINT_INSTALL_DIR` or pin a version with `$env:MINT_VERSION = 'v1.0.0'`.
 
 ### go install
 

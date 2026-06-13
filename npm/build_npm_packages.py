@@ -70,11 +70,10 @@ def build_main_package(main_src: Path, dist_dir: Path, out_dir: Path, version: s
     if not bundled:
         raise RuntimeError(f"no release archives found in {dist_dir}")
 
-    # Inject version and remove platform package dependencies
+    # Inject the release version into package.json
     pkg_json_path = pkg_dir / "package.json"
     pkg_json = json.loads(pkg_json_path.read_text())
     pkg_json["version"] = version
-    pkg_json.pop("optionalDependencies", None)
     pkg_json_path.write_text(json.dumps(pkg_json, indent=2))
 
     # Copy README into the package so it appears on the npm registry page

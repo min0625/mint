@@ -18,6 +18,9 @@ const (
 	defaultBaseURL   = "https://api.openai.com"
 	defaultAPIPath   = "/v1/chat/completions"
 	defaultModelName = "gpt-4o-mini"
+	// maxScanLineBytes raises bufio.Scanner's default 64KB line limit so a
+	// large SSE data line or error body does not abort the stream early.
+	maxScanLineBytes = 1 << 20
 )
 
 // Client is an OpenAI API client.
@@ -104,6 +107,8 @@ func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), maxScanLineBytes)
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		if !strings.HasPrefix(line, "data: ") {
