@@ -14,51 +14,50 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-MAIN_PKG_NAME = "mint-ai"
+PKG_NAME = "mint-ai"
 
 PLATFORM_MAP = [
-    # (goreleaser_os, goreleaser_arch, npm_os,   npm_cpu,  suffix)
-    ("linux",   "amd64", "linux",  "x64",   "linux-x64"),
-    ("linux",   "arm64", "linux",  "arm64", "linux-arm64"),
-    ("darwin",  "amd64", "darwin", "x64",   "darwin-x64"),
-    ("darwin",  "arm64", "darwin", "arm64", "darwin-arm64"),
-    ("windows", "amd64", "win32",  "x64",   "windows-x64"),
-    ("windows", "arm64", "win32",  "arm64", "windows-arm64"),
+    # (goreleaser_os, goreleaser_arch, suffix)
+    ("linux",   "amd64", "linux-x64"),
+    ("linux",   "arm64", "linux-arm64"),
+    ("darwin",  "amd64", "darwin-x64"),
+    ("darwin",  "arm64", "darwin-arm64"),
+    ("windows", "amd64", "windows-x64"),
+    ("windows", "arm64", "windows-arm64"),
 ]
 
 
 def extract_binary(dist_dir: Path, goos: str, goarch: str, out_path: Path) -> bool:
-    """Extract binary from goreleaser archive and write to out_path."""
     bin_name = "mint.exe" if goos == "windows" else "mint"
     archive_stem = f"mint_{goos}_{goarch}"
-
-    for suffix in (".tar.gz", ".zip"):
-        archive = dist_dir / f"{archive_stem}{suffix}"
+    for ext in (".tar.gz", ".zip"):
+        archive = dist_dir / f"{archive_stem}{ext}"
         if not archive.exists():
             continue
-        if suffix == ".zip":
+        if ext == ".zip":
             with zipfile.ZipFile(archive) as zf:
-                with zf.open(bin_name) as src, open(out_path, "wb") as dst:
-                    dst.write(src.read())
+                out_path.write_bytes(zf.read(bin_name))
         else:
             with tarfile.open(archive, "r:gz") as tf:
-                src = tf.extractfile(tf.getmember(bin_name))
-                with open(out_path, "wb") as dst:
-                    dst.write(src.read())
+                member = tf.getmember(bin_name)
+                f = tf.extractfile(member)
+                if f is None:
+                    raise RuntimeError(f"{bin_name} is not a regular file in {archive}")
+                out_path.write_bytes(f.read())
         return True
     return False
 
 
 def build_main_package(main_src: Path, dist_dir: Path, out_dir: Path, version: str) -> list[str]:
-    pkg_dir = out_dir / "main"
+    pkg_dir = out_dir / main_src.name
     if pkg_dir.exists():
         shutil.rmtree(pkg_dir)
     shutil.copytree(main_src, pkg_dir)
 
     bundled = []
-    for goos, goarch, _npm_os, _npm_cpu, suffix in PLATFORM_MAP:
+    for goos, goarch, suffix in PLATFORM_MAP:
         bin_name = "mint.exe" if goos == "windows" else "mint"
-        bin_path = pkg_dir / "bin" / suffix / bin_name
+        bin_path = pkg_dir / "scripts" / suffix / bin_name
         bin_path.parent.mkdir(parents=True, exist_ok=True)
         if not extract_binary(dist_dir, goos, goarch, bin_path):
             print(f"  SKIP {suffix}: archive not found in {dist_dir}")
@@ -70,11 +69,10 @@ def build_main_package(main_src: Path, dist_dir: Path, out_dir: Path, version: s
     if not bundled:
         raise RuntimeError(f"no release archives found in {dist_dir}")
 
-    # Inject the release version into package.json
     pkg_json_path = pkg_dir / "package.json"
     pkg_json = json.loads(pkg_json_path.read_text())
     pkg_json["version"] = version
-    pkg_json_path.write_text(json.dumps(pkg_json, indent=2))
+    pkg_json_path.write_text(json.dumps(pkg_json, indent=2) + "\n")
 
     # Copy README into the package so it appears on the npm registry page
     repo_root = Path(__file__).parent.parent
@@ -83,11 +81,11 @@ def build_main_package(main_src: Path, dist_dir: Path, out_dir: Path, version: s
         shutil.copy2(readme_src, pkg_dir / "README.md")
 
     # Ensure shim is executable
-    shim = pkg_dir / "bin" / "mint"
+    shim = pkg_dir / "scripts" / "mint"
     if shim.exists():
         shim.chmod(shim.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
-    print(f"  Built {MAIN_PKG_NAME} (main)")
+    print(f"  Built {PKG_NAME}")
     return bundled
 
 
@@ -102,7 +100,7 @@ def main() -> None:
     dist_dir = Path(args.dist_dir).resolve()
     out_dir = Path(args.out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-    main_src = Path(__file__).parent / "main"
+    main_src = Path(__file__).parent / "mint-ai"
 
     print("Building npm package...")
     bundled = build_main_package(main_src, dist_dir, out_dir, version)
@@ -112,7 +110,7 @@ def main() -> None:
     for suffix in bundled:
         print(f"  {suffix}")
     print("\nPublish command:")
-    print(f"  npm publish {out_dir}/main --access public")
+    print(f"  npm publish {out_dir / main_src.name} --access public")
 
 
 if __name__ == "__main__":

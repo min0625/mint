@@ -24,7 +24,7 @@ function getBinaryPath() {
   }
 
   const binName = process.platform === "win32" ? "mint.exe" : "mint";
-  const bin = join(__dirname, "bin", platformDir, binName);
+  const bin = join(__dirname, "scripts", platformDir, binName);
   if (!existsSync(bin)) {
     throw new Error(
       `mint-ai: bundled binary for ${key} not found at ${bin}.\n` +

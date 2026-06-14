@@ -10,6 +10,7 @@ jobs:
   build-and-publish:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write   # For PyPI Trusted Publisher (OIDC)
@@ -47,7 +48,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          python python/build_wheels.py \
+          python pypi/build_wheels.py \
             --version "$VERSION" \
             --dist-dir dist \
             --out-dir dist/wheels
@@ -57,3 +58,4 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/wheels/
+          skip_existing: true

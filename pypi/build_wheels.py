@@ -7,6 +7,8 @@ Usage:
 """
 
 import argparse
+import platform
+import re
 import stat
 import sys
 import tarfile
@@ -31,6 +33,16 @@ PLATFORM_MAP: dict[tuple[str, str], list[str]] = {
     ("darwin", "arm64"):  ["macosx_11_0_arm64"],
     ("windows", "amd64"): ["win_amd64"],
     ("windows", "arm64"): ["win_arm64"],
+}
+
+# Maps (platform.system(), platform.machine()) → (goos, goarch)
+PY_TO_GO_PLATFORM: dict[tuple[str, str], tuple[str, str]] = {
+    ("Linux",   "x86_64"):  ("linux",   "amd64"),
+    ("Linux",   "aarch64"): ("linux",   "arm64"),
+    ("Darwin",  "x86_64"):  ("darwin",  "amd64"),
+    ("Darwin",  "arm64"):   ("darwin",  "arm64"),
+    ("Windows", "AMD64"):   ("windows", "amd64"),
+    ("Windows", "ARM64"):   ("windows", "arm64"),
 }
 
 
@@ -131,7 +143,6 @@ def normalize_version(version: str) -> str:
       v0.0.0-beta.2   -> 0.0.0b2
       v0.0.0-rc.1     -> 0.0.0rc1
     """
-    import re
     v = version.lstrip("v")
     v = re.sub(r"-alpha\.(\d+)$", r"a\1", v)
     v = re.sub(r"-beta\.(\d+)$", r"b\1", v)
@@ -156,24 +167,12 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     version = normalize_version(args.version)
 
-    # Determine current platform if --current-platform-only is set
     current_goos = None
     current_goarch = None
     if args.current_platform_only:
-        import platform as _platform
-        system = _platform.system()
-        machine = _platform.machine()
-
-        # Map Python platform to Go platform names
-        platform_map_py_to_go = {
-            ("Linux", "x86_64"): ("linux", "amd64"),
-            ("Linux", "aarch64"): ("linux", "arm64"),
-            ("Darwin", "x86_64"): ("darwin", "amd64"),
-            ("Darwin", "arm64"): ("darwin", "arm64"),
-            ("Windows", "AMD64"): ("windows", "amd64"),
-            ("Windows", "ARM64"): ("windows", "arm64"),
-        }
-        go_platform = platform_map_py_to_go.get((system, machine))
+        system = platform.system()
+        machine = platform.machine()
+        go_platform = PY_TO_GO_PLATFORM.get((system, machine))
         if go_platform:
             current_goos, current_goarch = go_platform
             print(f"Building only for current platform: {system} {machine} ({current_goos}/{current_goarch})")
@@ -192,28 +191,30 @@ def main() -> None:
         bin_filename = "mint.exe" if goos == "windows" else "mint"
         tmp_bin = out_dir / f"_tmp_{goos}_{goarch}_{bin_filename}"
 
-        # Extract binary directly from archive (avoids path-traversal risk)
-        if archive.suffix == ".zip":
-            with zipfile.ZipFile(archive) as zf:
-                tmp_bin.write_bytes(zf.read(bin_filename))
-        else:
-            with tarfile.open(archive, "r:gz") as tf:
-                member = tf.getmember(bin_filename)
-                with tf.extractfile(member) as f:  # type: ignore[union-attr]
-                    tmp_bin.write_bytes(f.read())
+        try:
+            # Extract binary directly from archive (avoids path-traversal risk)
+            if archive.suffix == ".zip":
+                with zipfile.ZipFile(archive) as zf:
+                    tmp_bin.write_bytes(zf.read(bin_filename))
+            else:
+                with tarfile.open(archive, "r:gz") as tf:
+                    member = tf.getmember(bin_filename)
+                    with tf.extractfile(member) as f:  # type: ignore[union-attr]
+                        tmp_bin.write_bytes(f.read())
 
-        if goos != "windows":
-            tmp_bin.chmod(tmp_bin.stat().st_mode | stat.S_IXUSR)
+            if goos != "windows":
+                tmp_bin.chmod(tmp_bin.stat().st_mode | stat.S_IXUSR)
 
-        for py_tag in py_tags:
-            build_wheel(
-                binary_path=tmp_bin,
-                version=version,
-                platform_tag=py_tag,
-                out_dir=out_dir,
-                is_windows=(goos == "windows"),
-            )
-        tmp_bin.unlink(missing_ok=True)
+            for py_tag in py_tags:
+                build_wheel(
+                    binary_path=tmp_bin,
+                    version=version,
+                    platform_tag=py_tag,
+                    out_dir=out_dir,
+                    is_windows=(goos == "windows"),
+                )
+        finally:
+            tmp_bin.unlink(missing_ok=True)
 
     print(f"\nDone. Wheels written to {out_dir}/")
 
