@@ -32,7 +32,7 @@ jobs:
           restore-keys: go-${{ runner.os }}-
 
       - name: Run GoReleaser
-        run: goreleaser release --clean
+        run: make release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

@@ -13,12 +13,9 @@ fix:
 	go mod tidy
 	golangci-lint run --new-from-rev=$(NEW_FROM_REV) -v --fix ./...
 
-.PHONY: lint-verify
-lint-verify:
-	golangci-lint config verify
-
 .PHONY: lint
-lint: lint-verify
+lint:
+	golangci-lint config verify
 	golangci-lint run --new-from-rev=$(NEW_FROM_REV) -v ./...
 
 .PHONY: test
@@ -31,6 +28,10 @@ check-tidy:
 
 .PHONY: check
 check: check-tidy lint test
+
+.PHONY: release
+release:
+	goreleaser release --clean
 
 .PHONY: release-snapshot
 release-snapshot:
