@@ -79,7 +79,7 @@ pip install mint-ai
 pipx install mint-ai
 ```
 
-After installation, the command is `mint` (not `mint-ai`), driven by the entry point in `python/pyproject.toml`.
+After installation, the command is `mint` (not `mint-ai`), driven by the entry point in `pypi/pyproject.toml`.
 
 ### Local Testing of Wheels
 
@@ -88,7 +88,7 @@ After installation, the command is `mint` (not `mint-ai`), driven by the entry p
 make release-snapshot
 
 # Step 2: Build Python wheel(s)
-cd python
+cd pypi
 # For current platform only (recommended for local testing to avoid platform mismatches)
 python build_wheels.py \
   --version 0.1.0 \
@@ -107,19 +107,19 @@ mint --target en "Hello, world!"
 **PyPI Release Workflow:**
 1. Push tag: `git tag v1.0.0 && git push origin v1.0.0`
 2. GitHub Actions triggers `release.yml` → builds multi-platform binaries
-3. GitHub Actions triggers `publish.yml` → assembles wheels → uploads to PyPI
+3. GitHub Actions triggers `publish-pypi.yml` → assembles wheels → uploads to PyPI
 4. Final users: `pip install mint-ai` (PyPI auto-selects correct platform)
 
 ### Directory Structure
 
 ```
-python/
+pypi/
   mint/
     __init__.py              # Python wrapper; locates and execs bundled binary
     __main__.py              # Enables `python -m mint`
   pyproject.toml             # Package metadata; specifies entry point `mint = mint:main`
   build_wheels.py            # Assembles wheels from goreleaser dist/ binaries
-.github/workflows/publish.yml # CI: download binaries → assemble wheels → upload to PyPI
+.github/workflows/publish-pypi.yml # CI: download binaries → assemble wheels → upload to PyPI
 .goreleaser.yaml             # Configure archive names for wheel building
 ```
 

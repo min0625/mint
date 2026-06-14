@@ -9,6 +9,7 @@ jobs:
   publish:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write
@@ -56,5 +57,17 @@ jobs:
             --dist-dir dist \
             --out-dir dist/npm
 
+      - name: Check if version already published on npm
+        id: npm-check
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if npm view "mint-ai@${VERSION}" version 2>/dev/null | grep -qF "${VERSION}"; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish main package
-        run: npm publish dist/npm/main --access public
+        if: steps.npm-check.outputs.skip != 'true'
+        run: npm publish dist/npm/mint-ai --access public
