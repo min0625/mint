@@ -7,6 +7,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/min0625/mint?logo=github)](https://github.com/min0625/mint/releases)
 [![PyPI](https://img.shields.io/pypi/v/mint-ai?logo=pypi&logoColor=white)](https://pypi.org/project/mint-ai/)
 [![npm](https://img.shields.io/npm/v/mint-ai?logo=npm)](https://www.npmjs.com/package/mint-ai)
+[![codecov](https://codecov.io/gh/min0625/mint/branch/main/graph/badge.svg)](https://codecov.io/gh/min0625/mint)
 
 Mint is a single-binary, LLM-powered translation CLI. Set two environment variables and translate anything from the command line — files, piped output, or inline text. Built-in language detection, grammar correction, streaming output, and multi-language rotation.
 

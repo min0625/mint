@@ -7,6 +7,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/min0625/mint?logo=github)](https://github.com/min0625/mint/releases)
 [![PyPI](https://img.shields.io/pypi/v/mint-ai?logo=pypi&logoColor=white)](https://pypi.org/project/mint-ai/)
 [![npm](https://img.shields.io/npm/v/mint-ai?logo=npm)](https://www.npmjs.com/package/mint-ai)
+[![codecov](https://codecov.io/gh/min0625/mint/branch/main/graph/badge.svg)](https://codecov.io/gh/min0625/mint)
 
 Mint 是一款單一執行檔的 LLM 驅動命令列翻譯工具。設定兩個環境變數，即可翻譯任何內容 — 檔案、管道輸出或直接輸入文字。內建語言偵測、語法修正、串流輸出與多語言輪換功能。
 
