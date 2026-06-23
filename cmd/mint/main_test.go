@@ -2,13 +2,39 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"slices"
+	"strings"
 	"testing"
 )
 
+// mockCompleter is a test double for llm.Completer.
+type mockCompleter struct {
+	response string
+	err      error
+}
+
+func (m *mockCompleter) Complete(_ context.Context, _ string, w io.Writer) error {
+	if m.err != nil {
+		return m.err
+	}
+
+	_, _ = io.WriteString(w, m.response)
+
+	return nil
+}
+
 const (
-	langZhTW = "zh-TW"
-	langZhTw = "zh-tw"
+	langZhTW   = "zh-TW"
+	langZhTw   = "zh-tw"
+	argTarget  = "--target"
+	inputHello = "Hello"
+	inputhello = "hello"
 )
 
 func TestLangMatches(t *testing.T) {
@@ -131,13 +157,13 @@ func TestNormalizeDetectedLang(t *testing.T) {
 
 func TestResolveInput(t *testing.T) {
 	t.Run("positional arg used directly", func(t *testing.T) {
-		got, err := resolveInput([]string{"hello"})
+		got, err := resolveInput([]string{inputhello})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if got != "hello" {
-			t.Errorf("got %q, want %q", got, "hello")
+		if got != inputhello {
+			t.Errorf("got %q, want %q", got, inputhello)
 		}
 	})
 
@@ -146,6 +172,56 @@ func TestResolveInput(t *testing.T) {
 			t.Error("expected error for blank arg, got nil")
 		}
 	})
+}
+
+func TestIsLangNeutral(t *testing.T) {
+	tests := []struct {
+		text string
+		want bool
+	}{
+		{"12345", true},
+		{"!@#$%", true},
+		{"   ", true},
+		{"", true},
+		{"123 + 456 = 579", true},
+		{"hello", false},
+		{"你好", false},
+		{"hello 123", false},
+	}
+	for _, tt := range tests {
+		if got := isLangNeutral(tt.text); got != tt.want {
+			t.Errorf("isLangNeutral(%q) = %v, want %v", tt.text, got, tt.want)
+		}
+	}
+}
+
+func TestDetectLanguage(t *testing.T) {
+	tests := []struct {
+		name     string
+		response string
+		err      error
+		wantLang string
+		wantErr  bool
+	}{
+		{"english", "en", nil, "en", false},
+		{"chinese traditional", "zh-TW", nil, "zh-tw", false},
+		{"neutral returns empty", "neutral", nil, "", false},
+		{"model error propagated", "", errors.New("api error"), "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockCompleter{response: tt.response, err: tt.err}
+
+			lang, err := detectLanguage(context.Background(), mock, "test text")
+			if (err != nil) != tt.wantErr {
+				t.Errorf("error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if lang != tt.wantLang {
+				t.Errorf("lang = %q, want %q", lang, tt.wantLang)
+			}
+		})
+	}
 }
 
 func TestGetSystemLanguage(t *testing.T) {
@@ -173,5 +249,316 @@ func TestGetSystemLanguage(t *testing.T) {
 				t.Errorf("getSystemLanguage() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestResolveInputFromStdin(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	old := os.Stdin
+
+	os.Stdin = r
+	defer func() { os.Stdin = old; _ = r.Close() }()
+
+	_, _ = io.WriteString(w, "hello from stdin\n")
+	_ = w.Close()
+
+	got, err := resolveInput(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got != "hello from stdin" {
+		t.Errorf("got %q, want %q", got, "hello from stdin")
+	}
+}
+
+func TestResolveInputStdinBlank(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	old := os.Stdin
+
+	os.Stdin = r
+	defer func() { os.Stdin = old; _ = r.Close() }()
+
+	_, _ = io.WriteString(w, "   \n")
+	_ = w.Close()
+
+	if _, err := resolveInput(nil); err == nil {
+		t.Error("expected error for blank stdin input")
+	}
+}
+
+// captureStdout replaces os.Stdout with a pipe and returns a function that
+// restores os.Stdout and returns whatever was written.
+func captureStdout(t *testing.T) func() string {
+	t.Helper()
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	old := os.Stdout
+	os.Stdout = w
+
+	return func() string {
+		_ = w.Close()
+
+		os.Stdout = old
+
+		var sb strings.Builder
+
+		_, _ = io.Copy(&sb, r)
+		_ = r.Close()
+
+		return sb.String()
+	}
+}
+
+func TestNewRootCmdLangNeutral(t *testing.T) {
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+
+	flush := captureStdout(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{argTarget, "en", "12345"})
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := flush()
+	if !strings.Contains(out, "12345") {
+		t.Errorf("expected '12345' in output, got: %q", out)
+	}
+}
+
+func TestNewRootCmdTranslation(t *testing.T) {
+	const sse = "data: {\"choices\":[{\"delta\":{\"content\":\"Bonjour\"}}]}\n\ndata: [DONE]\n"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, sse)
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+
+	flush := captureStdout(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{argTarget, "fr", "--verbose", inputHello})
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		_ = flush()
+
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := flush()
+	if !strings.Contains(out, "Bonjour") {
+		t.Errorf("expected 'Bonjour' in output, got: %q", out)
+	}
+}
+
+func TestNewRootCmdTranslationError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(w, `{"error":"server error"}`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{argTarget, "fr", inputHello})
+
+	err := cmd.ExecuteContext(context.Background())
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "translation failed") {
+		t.Errorf("error %q does not mention 'translation failed'", err.Error())
+	}
+}
+
+func TestNewRootCmdMultiTarget(t *testing.T) {
+	// Both calls (detection + translation) return a valid SSE response.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"en\"}}]}\n\ndata: [DONE]\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+	t.Setenv("MINT_TARGET_LANG", "en,fr")
+
+	flush := captureStdout(t)
+	defer flush()
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"Hello world"})
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestNewRootCmdMultiTargetNeutral(t *testing.T) {
+	// Detection returns "neutral" — output is passed through without a second call.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"neutral\"}}]}\n\ndata: [DONE]\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+	t.Setenv("MINT_TARGET_LANG", "en,fr")
+
+	flush := captureStdout(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"12345"})
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		_ = flush()
+
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := flush()
+	if !strings.Contains(out, "12345") {
+		t.Errorf("expected '12345' in output, got: %q", out)
+	}
+}
+
+func TestNewRootCmdDetectLangError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(w, `{"error":"server error"}`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+	t.Setenv("MINT_TARGET_LANG", "en,fr")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{inputHello})
+
+	err := cmd.ExecuteContext(context.Background())
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "language detection failed") {
+		t.Errorf("error %q does not mention 'language detection failed'", err.Error())
+	}
+}
+
+func TestNewRootCmdProviderError(t *testing.T) {
+	t.Setenv("MINT_PROVIDER", "invalid-provider")
+	t.Setenv("MINT_API_KEY", "test")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{inputHello})
+
+	if err := cmd.ExecuteContext(context.Background()); err == nil {
+		t.Error("expected error for invalid provider, got nil")
+	}
+}
+
+func TestNewRootCmdNoInput(t *testing.T) {
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+
+	// Empty stdin so resolveInput returns an error.
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	old := os.Stdin
+	os.Stdin = r
+
+	_ = w.Close()
+
+	defer func() { os.Stdin = old; _ = r.Close() }()
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{argTarget, "en"})
+
+	if err := cmd.ExecuteContext(context.Background()); err == nil {
+		t.Error("expected error for no input, got nil")
+	}
+}
+
+func TestRunSuccess(t *testing.T) {
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+
+	old := os.Args
+
+	os.Args = []string{"mint", argTarget, "en", "12345"}
+	defer func() { os.Args = old }()
+
+	flush := captureStdout(t)
+	defer flush()
+
+	if code := run(); code != 0 {
+		t.Errorf("expected exit code 0, got %d", code)
+	}
+}
+
+func TestRunError(t *testing.T) {
+	t.Setenv("MINT_PROVIDER", "")
+
+	old := os.Args
+
+	os.Args = []string{"mint", argTarget, "en", inputhello}
+	defer func() { os.Args = old }()
+
+	// Suppress stderr to keep test output clean.
+	rr, ww, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldErr := os.Stderr
+
+	os.Stderr = ww
+	defer func() {
+		_ = ww.Close()
+
+		os.Stderr = oldErr
+		_, _ = io.Copy(io.Discard, rr)
+		_ = rr.Close()
+	}()
+
+	if code := run(); code != 1 {
+		t.Errorf("expected exit code 1, got %d", code)
 	}
 }

@@ -42,6 +42,13 @@ data: [DONE]
 	}
 }
 
+func TestNewUsesDefaultBaseURL(t *testing.T) {
+	c := openai.New("key", "", "custom-model")
+	if c == nil {
+		t.Fatal("expected non-nil client")
+	}
+}
+
 func TestCompleteReturnsErrorOnNon200(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
