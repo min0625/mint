@@ -1,4 +1,4 @@
-[English](https://github.com/min0625/mint/blob/main/README.md) | **繁體中文**
+🌐 [其他語言](https://github.com/min0625/mint/blob/main/LANGUAGES.md)
 
 # 🌿 Mint
 

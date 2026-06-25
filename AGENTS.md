@@ -155,6 +155,8 @@ bin/mint                             # compiled binary (gitignored)
 ## Documentation
 
 - **Multilingual README sync** — `README.md` (English) and `README.zh-TW.md` (Traditional Chinese) must always be kept in sync. Whenever one is updated, apply the equivalent change to the other. New README language variants follow the pattern `README.<locale>.md`.
+- **Language list** — the list of available languages lives **only** in [LANGUAGES.md](./LANGUAGES.md). Each README links to it with a single static line, written **in that README's own language** (e.g. English: `🌐 Other languages`; Traditional Chinese: `🌐 其他語言`). This line never changes when languages are added. To add a language: create `README.<locale>.md` and add one entry to `LANGUAGES.md` — do **not** add a per-language switcher row to every README.
+- **Absolute URLs in README headers** — `README.md` is shipped as the PyPI long-description and the npm package readme. PyPI does **not** rewrite relative links, so the `LANGUAGES.md` link in each README must be an **absolute** GitHub URL (`https://github.com/min0625/mint/blob/main/LANGUAGES.md`). Links *inside* `LANGUAGES.md` may stay relative — that file is GitHub-only (not packaged into PyPI/npm).
 
 ## Conventions
 
