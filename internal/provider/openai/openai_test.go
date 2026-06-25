@@ -3,6 +3,8 @@
 package openai_test
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -29,7 +31,8 @@ data: [DONE]
 	defer srv.Close()
 
 	var sb strings.Builder
-	if _, err := openai.New("secret-key", srv.URL, "").Complete(t.Context(), "prompt", &sb); err != nil {
+	if _, err := openai.New("secret-key", srv.URL, "").
+		Complete(t.Context(), "system text", "user text", &sb); err != nil {
 		t.Fatalf("Complete returned error: %v", err)
 	}
 
@@ -65,7 +68,7 @@ data: [DONE]
 
 	var sb strings.Builder
 
-	usage, err := openai.New("key", srv.URL, "").Complete(t.Context(), "prompt", &sb)
+	usage, err := openai.New("key", srv.URL, "").Complete(t.Context(), "system text", "user text", &sb)
 	if err != nil {
 		t.Fatalf("Complete returned error: %v", err)
 	}
@@ -88,7 +91,7 @@ func TestCompleteReturnsErrorOnNon200(t *testing.T) {
 
 	var sb strings.Builder
 
-	_, err := openai.New("k", srv.URL, "").Complete(t.Context(), "prompt", &sb)
+	_, err := openai.New("k", srv.URL, "").Complete(t.Context(), "system text", "user text", &sb)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -96,4 +99,41 @@ func TestCompleteReturnsErrorOnNon200(t *testing.T) {
 	if !strings.Contains(err.Error(), "429") {
 		t.Errorf("error %q does not mention status 429", err.Error())
 	}
+}
+
+func TestCompleteRoleSeparation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+
+		var req struct {
+			Messages []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+
+		_ = json.Unmarshal(body, &req)
+
+		if len(req.Messages) != 2 {
+			t.Errorf("expected 2 messages, got %d", len(req.Messages))
+
+			return
+		}
+
+		if req.Messages[0].Role != "system" || req.Messages[0].Content != "my system instruction" {
+			t.Errorf("messages[0] = %+v, want role=system content=%q", req.Messages[0], "my system instruction")
+		}
+
+		if req.Messages[1].Role != "user" || req.Messages[1].Content != "my user text" {
+			t.Errorf("messages[1] = %+v, want role=user content=%q", req.Messages[1], "my user text")
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: [DONE]\n"))
+	}))
+	defer srv.Close()
+
+	var sb strings.Builder
+
+	_, _ = openai.New("k", srv.URL, "").Complete(t.Context(), "my system instruction", "my user text", &sb)
 }

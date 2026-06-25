@@ -87,10 +87,14 @@ type streamResponse struct {
 }
 
 // Complete calls the OpenAI API with streaming and writes tokens to w as they arrive.
-func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) (llm.Usage, error) {
+// system is sent as a system-role message followed by user as a user-role message.
+func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer) (llm.Usage, error) {
 	body := requestBody{
-		Model:         c.modelName,
-		Messages:      []message{{Role: "user", Content: prompt}},
+		Model: c.modelName,
+		Messages: []message{
+			{Role: "system", Content: system},
+			{Role: "user", Content: user},
+		},
 		Temperature:   0.3,
 		Stream:        true,
 		StreamOptions: streamOptions{IncludeUsage: true},

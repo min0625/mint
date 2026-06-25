@@ -58,6 +58,7 @@ type requestBody struct {
 	Model       string    `json:"model"`
 	MaxTokens   int       `json:"max_tokens"`
 	Temperature float64   `json:"temperature"`
+	System      string    `json:"system,omitempty"`
 	Messages    []message `json:"messages"`
 	Stream      bool      `json:"stream"`
 }
@@ -89,12 +90,14 @@ type streamEvent struct {
 }
 
 // Complete calls the Anthropic API with streaming and writes tokens to w as they arrive.
-func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) (llm.Usage, error) {
+// system is sent as the top-level system field; user is the single user message.
+func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer) (llm.Usage, error) {
 	body := requestBody{
 		Model:       c.modelName,
 		MaxTokens:   maxTokens,
 		Temperature: temperature,
-		Messages:    []message{{Role: "user", Content: prompt}},
+		System:      system,
+		Messages:    []message{{Role: "user", Content: user}},
 		Stream:      true,
 	}
 

@@ -51,8 +51,13 @@ func New(apiKey, baseURL, modelName string) *Client {
 }
 
 type requestBody struct {
-	Contents         []content        `json:"contents"`
-	GenerationConfig generationConfig `json:"generationConfig"`
+	SystemInstruction systemInstruction `json:"systemInstruction"`
+	Contents          []content         `json:"contents"`
+	GenerationConfig  generationConfig  `json:"generationConfig"`
+}
+
+type systemInstruction struct {
+	Parts []part `json:"parts"`
 }
 
 type content struct {
@@ -82,12 +87,12 @@ type usageMetadata struct {
 }
 
 // Complete calls the Google Gemini streaming API and writes tokens to w as they arrive.
-func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) (llm.Usage, error) {
+// system is sent as systemInstruction; user is the single turn in contents.
+func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer) (llm.Usage, error) {
 	body := requestBody{
-		Contents: []content{
-			{Parts: []part{{Text: prompt}}},
-		},
-		GenerationConfig: generationConfig{Temperature: 0.3},
+		SystemInstruction: systemInstruction{Parts: []part{{Text: system}}},
+		Contents:          []content{{Parts: []part{{Text: user}}}},
+		GenerationConfig:  generationConfig{Temperature: 0.3},
 	}
 
 	jsonBody, err := json.Marshal(body)

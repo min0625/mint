@@ -15,7 +15,8 @@ type Usage struct {
 }
 
 // Completer sends a prompt to an LLM and streams the response.
+// system holds the task instructions; user holds the (possibly untrusted) input data.
 // Implementations write tokens directly to w as they arrive.
 type Completer interface {
-	Complete(ctx context.Context, prompt string, w io.Writer) (Usage, error)
+	Complete(ctx context.Context, system, user string, w io.Writer) (Usage, error)
 }

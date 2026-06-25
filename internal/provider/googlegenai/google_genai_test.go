@@ -3,6 +3,8 @@
 package googlegenai_test
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -29,7 +31,8 @@ data: {"candidates":[{"content":{"parts":[{"text":" world"}]}}]}
 	defer srv.Close()
 
 	var sb strings.Builder
-	if _, err := googlegenai.New("secret-key", srv.URL, "").Complete(t.Context(), "prompt", &sb); err != nil {
+	if _, err := googlegenai.New("secret-key", srv.URL, "").
+		Complete(t.Context(), "system text", "user text", &sb); err != nil {
 		t.Fatalf("Complete returned error: %v", err)
 	}
 
@@ -66,7 +69,7 @@ func TestCompleteReturnsUsage(t *testing.T) {
 
 	var sb strings.Builder
 
-	usage, err := googlegenai.New("key", srv.URL, "").Complete(t.Context(), "prompt", &sb)
+	usage, err := googlegenai.New("key", srv.URL, "").Complete(t.Context(), "system text", "user text", &sb)
 	if err != nil {
 		t.Fatalf("Complete returned error: %v", err)
 	}
@@ -89,7 +92,7 @@ func TestCompleteReturnsErrorOnNon200(t *testing.T) {
 
 	var sb strings.Builder
 
-	_, err := googlegenai.New("k", srv.URL, "").Complete(t.Context(), "prompt", &sb)
+	_, err := googlegenai.New("k", srv.URL, "").Complete(t.Context(), "system text", "user text", &sb)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -97,4 +100,44 @@ func TestCompleteReturnsErrorOnNon200(t *testing.T) {
 	if !strings.Contains(err.Error(), "403") {
 		t.Errorf("error %q does not mention status 403", err.Error())
 	}
+}
+
+func TestCompleteRoleSeparation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+
+		var req struct {
+			SystemInstruction struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"systemInstruction"`
+			Contents []struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"contents"`
+		}
+
+		_ = json.Unmarshal(body, &req)
+
+		if len(req.SystemInstruction.Parts) == 0 || req.SystemInstruction.Parts[0].Text != "my system instruction" {
+			t.Errorf("systemInstruction.parts[0].text = %q, want %q",
+				req.SystemInstruction.Parts[0].Text, "my system instruction")
+		}
+
+		if len(req.Contents) == 0 || len(req.Contents[0].Parts) == 0 ||
+			req.Contents[0].Parts[0].Text != "my user text" {
+			t.Errorf("contents[0].parts[0].text = %q, want %q",
+				req.Contents[0].Parts[0].Text, "my user text")
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {}\n"))
+	}))
+	defer srv.Close()
+
+	var sb strings.Builder
+
+	_, _ = googlegenai.New("k", srv.URL, "").Complete(t.Context(), "my system instruction", "my user text", &sb)
 }
