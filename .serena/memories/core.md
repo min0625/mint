@@ -1,33 +1,29 @@
-# Mint — Core
+# Mint — Core (Serena memory-graph root)
 
-Minimalist LLM-powered translation CLI written in Go.
-Module: `github.com/min0625/mint`
+Minimalist LLM-powered translation CLI in Go. Module `github.com/min0625/mint`.
 
-## Source Map
+**Canonical project facts live in `AGENTS.md` at the repo root**, which is always loaded
+into context (CLAUDE.md does `@AGENTS.md`). That file owns: build/test/lint commands, tech
+stack + tool pins, the `MINT_*` env-var table, conventions, key design decisions (language
+detection / source flag / rotation / neutral pass-through), and the multilingual README-sync
+rules. Do **not** duplicate AGENTS.md here — these memories only add Serena-specific
+navigation and code-level detail that AGENTS.md does not spell out.
+
+## Source map (symbol-level)
 
 ```
-cmd/mint/main.go                # entry; cobra root cmd; viper wiring; target-language resolution
-internal/llm/llm.go             # Completer interface — Complete(ctx, prompt, w) (Usage, error); Usage struct
-internal/provider/config.go     # Config struct; ValidateConfig; provider-name constants
+cmd/mint/main.go                # entry; cobra root via newRootCmd() factory; viper wiring; target-lang resolution
+internal/llm/llm.go             # Completer interface: Complete(ctx, system, user string, w io.Writer) (Usage, error); Usage = token counts
+internal/provider/config.go     # Config struct; Config.ValidateConfig(); provider-name constants
 internal/provider/provider.go   # NewCompleter(cfg) factory — dispatches on cfg.Provider
 internal/provider/googlegenai/  # Google Gemini HTTP client (implements Completer)
 internal/provider/openai/       # OpenAI GPT HTTP client (implements Completer)
 internal/provider/anthropic/    # Anthropic Claude HTTP client (implements Completer)
-bin/mint                        # compiled binary (gitignored)
 ```
 
-## Project-Wide Invariants
+Build injects `-X main.version=<tag-or-sha> -X main.commit=<sha>` via ldflags (Makefile).
 
-- CGO disabled (`CGO_ENABLED=0`), single static binary
-- No config files — config from `MINT_`-prefixed env vars (+ CLI flags) only
-- Pipe-friendly: input from args OR stdin; output to stdout; errors to stderr
-- `version` and `commit` injected via ldflags at build time (see `mem:tech_stack`)
-- Keep `go.mod` minimal — add dependencies only when necessary
-- README sync: every `README.<locale>.md` mirrors canonical `README.md`; language list lives only in LANGUAGES.md (see AGENTS.md "Documentation")
+## Memory graph
 
-## Key References
-
-- Build/test/lint commands: `mem:suggested_commands`
-- Language/toolchain pins: `mem:tech_stack`
-- Code conventions + provider/env design: `mem:conventions`
-- Task completion checklist: `mem:task_completion`
+- Adding a provider + non-obvious code-level conventions not in AGENTS.md: `mem:conventions`
+- How these memories are structured/maintained (meta): `mem:memory_maintenance`

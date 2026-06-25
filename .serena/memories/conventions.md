@@ -1,19 +1,22 @@
-# Conventions
+# Conventions (additive to AGENTS.md)
 
-## Packages & structure
-- Package names: lowercase, short (e.g. `llm`, `googlegenai`, `openai`, `anthropic`)
-- All new packages go under `internal/` or `cmd/mint/`
-- LLM backends implement `internal/llm.Completer` (single method `Complete(ctx, prompt, w) (Usage, error)`)
-- Adding a provider: new package `internal/provider/<name>/` exposing `New(apiKey, baseURL, modelName)`, plus a provider-name const + dispatch case in `NewCompleter` (internal/provider/provider.go)
+Only code-level conventions that `AGENTS.md` does not already state. Env-var table, CLI
+flags, design decisions, and build/test commands live in AGENTS.md — not here.
 
-## Config / env vars
-- Single-key model: `MINT_PROVIDER` selects backend, `MINT_API_KEY` holds the key — NOT per-backend keys like `MINT_GEMINI_API_KEY`
-- Others: `MINT_BASE_URL`, `MINT_MODEL_NAME`, `MINT_TARGET_LANG`, `MINT_VERBOSE` (full table in AGENTS.md)
-- Viper instance (not global singleton) in command wiring; `SetEnvPrefix("MINT")` + `AutomaticEnv()`
-- Validation centralized in `Config.ValidateConfig()` (internal/provider/config.go)
+## Adding an LLM provider
+1. New package `internal/provider/<name>/` exposing `New(apiKey, baseURL, modelName)` that
+   returns an `llm.Completer` (single method `Complete(ctx, system, user, w) (Usage, error)` —
+   system/user are split messages for prompt-injection isolation).
+2. Add a provider-name const + a dispatch case in `NewCompleter` (internal/provider/provider.go).
+- Single-key config model: `MINT_PROVIDER` selects the backend, `MINT_API_KEY` holds the key
+  — NOT per-backend keys like `MINT_GEMINI_API_KEY`.
 
-## CLI / errors
-- Cobra root built in `newRootCmd()` factory, not `init()`
-- Flags: `--target`/`-t`, `--source`/`-s`, `--verbose`/`-v`
-- Errors returned up the stack; cobra prints to stderr via `RunE`
-- No `log` package — use `fmt.Fprintf(os.Stderr, ...)` for diagnostics
+## Code-level conventions
+- Packages: lowercase, short (`llm`, `googlegenai`, `openai`, `anthropic`); all new packages
+  under `internal/` or `cmd/mint/`.
+- Viper: use a local viper instance (not the global singleton) in command wiring;
+  `SetEnvPrefix("MINT")` + `AutomaticEnv()`.
+- Cobra root built in a `newRootCmd()` factory, not `init()`.
+- Config validation centralized in `Config.ValidateConfig()` (internal/provider/config.go).
+- No `log` package — write diagnostics with `fmt.Fprintf(os.Stderr, ...)`; errors are returned
+  up the stack and cobra prints them via `RunE`.

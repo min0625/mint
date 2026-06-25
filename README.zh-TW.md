@@ -35,6 +35,24 @@ cat document.txt | mint -t fr     # 翻譯整個檔案
 
 ## 📋 安裝
 
+### 自動安裝（推薦）
+
+**macOS / Linux**
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"
+```
+
+自動偵測作業系統與架構（Linux/macOS、x86_64/arm64），安裝到 `~/.local/bin`。可透過 `MINT_INSTALL_DIR` 覆蓋，或用 `MINT_VERSION=v1.0.0` 指定版本。
+
+**Windows（PowerShell）**
+
+```powershell
+irm https://raw.githubusercontent.com/min0625/mint/main/script/install.ps1 | iex
+```
+
+自動偵測架構（x86_64/arm64），安裝到 `$HOME\.local\bin`。可透過 `$env:MINT_INSTALL_DIR` 覆蓋，或用 `$env:MINT_VERSION = 'v1.0.0'` 指定版本。
+
 ### Homebrew (macOS / Linux)
 
 ```bash
@@ -53,35 +71,9 @@ pipx install mint-ai
 npm install -g mint-ai
 ```
 
-### 自動安裝
-
-**macOS / Linux**
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"
-```
-
-自動偵測作業系統與架構（Linux/macOS、x86_64/arm64），安裝到 `~/.local/bin`。可透過 `MINT_INSTALL_DIR` 覆蓋，或用 `MINT_VERSION=v1.0.0` 指定版本。
-
-**Windows（PowerShell）**
-
-```powershell
-irm https://raw.githubusercontent.com/min0625/mint/main/script/install.ps1 | iex
-```
-
-自動偵測架構（x86_64/arm64），安裝到 `$HOME\.local\bin`。可透過 `$env:MINT_INSTALL_DIR` 覆蓋，或用 `$env:MINT_VERSION = 'v1.0.0'` 指定版本。
-
-### go install
-
-```bash
-go install github.com/min0625/mint/cmd/mint@latest
-```
-
-需要 Go 1.26+。二進位檔會放在 `$GOPATH/bin`（通常是 `~/go/bin`）。
-
 ### 手動下載
 
-預編譯的二進位檔位於 [GitHub Releases](https://github.com/min0625/mint/releases)
+從 [GitHub Releases](https://github.com/min0625/mint/releases) 下載對應平台的預編譯二進位檔，移至 `PATH` 中的目錄，然後驗證：
 
 ```bash
 mint --version
@@ -136,18 +128,17 @@ mint -t ja -v "Good morning"
 # [mint] single target — skipping language detection
 # [mint] target language: ja
 # おはようございます
-# [mint] tokens: 63 in / 4 out
+# [mint] tokens: 113 in / 2 out
 ```
 
 **典型 token 用量**（以 `gemini-3.1-flash-lite` 實測）：
 
 | 模式 | 輸入 | API 呼叫次數 | 輸入 tokens | 輸出 tokens |
 |------|------|-------------|------------|------------|
-| 單一目標（`-t` 或單一 `MINT_TARGET_LANG`） | 短詞／短句 | 1 | ~57–65 | ~1–5 |
-| 單一目標 | 長篇文章（`testdata/sample.txt`） | 1 | ~416–420 | ~360–476 |
-| 多目標輪換（逗號分隔 `MINT_TARGET_LANG`） | 短句 | 2 | ~144–148 | ~6–8 |
-| 語言中性直通（數字、符號） | 任意 | 0 | 0 | 0 |
-| 明確來源 `-s` + 輪換 | 短句 | 1 | ~53 | ~1–2 |
+| 單一目標（`-t` 或單一 `MINT_TARGET_LANG`） | 短詞／短句 | 1 | ~110–130 | ~1–15 |
+| 單一目標 | 長篇文章（`testdata/sample.txt`） | 1 | ~465–470 | ~450–560 |
+| 多目標輪換（逗號分隔 `MINT_TARGET_LANG`） | 短句 | 2 | ~250–260 | ~2–8 |
+| 明確來源 `-s` + 輪換 | 短句 | 1 | ~105–120 | ~1–2 |
 
 > Token 數量隨輸入長度而變；輸出 token 也因目標語言而異——日文與中文通常比英文產生更多 token。
 
@@ -155,15 +146,15 @@ mint -t ja -v "Good morning"
 
 | 輸入 | 每次約用 token | 每百萬 token 可翻譯次數 |
 |------|---------------|----------------------|
-| 短詞或短句 | 約 65 | 約 15,000 次 |
-| 300 字文章 | 約 840 | 約 1,200 篇 |
+| 短詞或短句 | 約 120 | 約 8,000 次 |
+| 300 字文章 | 約 1,000 | 約 1,000 篇 |
 
 > 次數為輸入與輸出 token 合計。各供應商的輸入與輸出分開計價，且多數提供免費方案——實際費率請參閱供應商定價頁。Google Gemini 於 [Google AI Studio](https://aistudio.google.com/apikey) 的免費方案無需信用卡。
 
 使用 `--source` / `-s` **強制指定來源語言**，可翻譯那些在目標語言中也屬合法的輸入（跨語言同形詞、羅馬拼音文字）：
 
 ```bash
-mint -s fr -t en "chat"          # 法文 → cat（不加 -s 會被當成英文的 "chat"）
+mint -s fr -t en "pain"          # 法文 → bread（不加 -s 會被當成英文的 "pain"）
 mint -s ja -t en "konnichiwa"    # 日文羅馬拼音 → hello
 ```
 
@@ -228,7 +219,7 @@ mint "こんにちは"   # ja → en: Hello
 
 ---
 
-## 📅 Roadmap
+## 📅 發展藍圖
 
 - [x] 多 LLM 提供商支援（Google Gemini、OpenAI、Anthropic，本地透過 Ollama / LM Studio）
 - [x] 透過 `MINT_TARGET_LANG` 實現智慧語言偵測與多語言輪換
@@ -243,6 +234,6 @@ mint "こんにちは"   # ja → en: Hello
 
 ---
 
-## 📄 License
+## 📄 授權
 
 Apache License 2.0 — 詳見 [LICENSE](https://github.com/min0625/mint/blob/main/LICENSE) 文件。

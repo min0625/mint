@@ -35,6 +35,24 @@ cat document.txt | mint -t fr     # translate a whole file
 
 ## 📋 Installation
 
+### Automated install (recommended)
+
+**macOS / Linux**
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"
+```
+
+Auto-detects OS and architecture (Linux/macOS, x86_64/arm64), installs to `~/.local/bin`. Override with `MINT_INSTALL_DIR` or pin a version with `MINT_VERSION=v1.0.0`.
+
+**Windows (PowerShell)**
+
+```powershell
+irm https://raw.githubusercontent.com/min0625/mint/main/script/install.ps1 | iex
+```
+
+Auto-detects architecture (x86_64/arm64) and installs to `$HOME\.local\bin`. Override with `$env:MINT_INSTALL_DIR` or pin a version with `$env:MINT_VERSION = 'v1.0.0'`.
+
 ### Homebrew (macOS / Linux)
 
 ```bash
@@ -53,35 +71,9 @@ pipx install mint-ai
 npm install -g mint-ai
 ```
 
-### Automated install
-
-**macOS / Linux**
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"
-```
-
-Auto-detects OS and architecture (Linux/macOS, x86_64/arm64), installs to `~/.local/bin`. Override with `MINT_INSTALL_DIR` or pin a version with `MINT_VERSION=v1.0.0`.
-
-**Windows (PowerShell)**
-
-```powershell
-irm https://raw.githubusercontent.com/min0625/mint/main/script/install.ps1 | iex
-```
-
-Auto-detects architecture (x86_64/arm64) and installs to `$HOME\.local\bin`. Override with `$env:MINT_INSTALL_DIR` or pin a version with `$env:MINT_VERSION = 'v1.0.0'`.
-
-### go install
-
-```bash
-go install github.com/min0625/mint/cmd/mint@latest
-```
-
-Requires Go 1.26+. Binary lands in `$GOPATH/bin` (usually `~/go/bin`).
-
 ### Manual download
 
-Pre-built binaries are available at [GitHub Releases](https://github.com/min0625/mint/releases)
+Download the pre-built binary for your platform from [GitHub Releases](https://github.com/min0625/mint/releases), move it into a directory on your `PATH`, then verify:
 
 ```bash
 mint --version
@@ -136,18 +128,17 @@ mint -t ja -v "Good morning"
 # [mint] single target — skipping language detection
 # [mint] target language: ja
 # おはようございます
-# [mint] tokens: 63 in / 4 out
+# [mint] tokens: 113 in / 2 out
 ```
 
 **Typical token usage** (measured on `gemini-3.1-flash-lite`):
 
 | Mode | Input | Calls | Input tokens | Output tokens |
 |------|-------|-------|-------------|---------------|
-| Single-target (`-t` or single `MINT_TARGET_LANG`) | short word/sentence | 1 | ~57–65 | ~1–5 |
-| Single-target | long article (`testdata/sample.txt`) | 1 | ~416–420 | ~360–476 |
-| Multi-target rotation (comma-separated `MINT_TARGET_LANG`) | short sentence | 2 | ~144–148 | ~6–8 |
-| Language-neutral pass-through (numbers, symbols) | any | 0 | 0 | 0 |
-| Explicit source `-s` + rotation | short sentence | 1 | ~53 | ~1–2 |
+| Single-target (`-t` or single `MINT_TARGET_LANG`) | short word/sentence | 1 | ~110–130 | ~1–15 |
+| Single-target | long article (`testdata/sample.txt`) | 1 | ~465–470 | ~450–560 |
+| Multi-target rotation (comma-separated `MINT_TARGET_LANG`) | short sentence | 2 | ~250–260 | ~2–8 |
+| Explicit source `-s` + rotation | short sentence | 1 | ~105–120 | ~1–2 |
 
 > Token counts scale with input length. Output tokens vary by target language — Japanese and Chinese tend to produce more tokens than English for equivalent content.
 
@@ -155,15 +146,15 @@ mint -t ja -v "Good morning"
 
 | Input | ~Tokens per translation | Translations per 1M tokens |
 |-------|------------------------|----------------------------|
-| Short word or phrase | ~65 | ~15,000 |
-| 300-word article | ~840 | ~1,200 |
+| Short word or phrase | ~120 | ~8,000 |
+| 300-word article | ~1,000 | ~1,000 |
 
 > Counts combine input and output tokens. Providers price input and output separately and many offer free tiers — check your provider's pricing page for current rates. Google Gemini's free tier at [Google AI Studio](https://aistudio.google.com/apikey) needs no credit card.
 
 **Force the source language** with `--source` / `-s` to translate input that is also valid in the target language (cross-language homographs, romanized text):
 
 ```bash
-mint -s fr -t en "chat"          # French → cat (without -s, treated as English "chat")
+mint -s fr -t en "pain"          # French → bread (without -s, treated as English "pain")
 mint -s ja -t en "konnichiwa"    # romaji Japanese → hello
 ```
 
