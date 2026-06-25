@@ -135,6 +135,13 @@ mint -t ja -v "Good morning"
 # おはようございます
 ```
 
+使用 `--source` / `-s` **強制指定來源語言**，可翻譯那些在目標語言中也屬合法的輸入（跨語言同形詞、羅馬拼音文字）：
+
+```bash
+mint -s fr -t en "chat"          # 法文 → cat（不加 -s 會被當成英文的 "chat"）
+mint -s ja -t en "konnichiwa"    # 日文羅馬拼音 → hello
+```
+
 ### 3. 智慧語言偵測
 
 **自動偵測並翻譯：**
@@ -189,6 +196,7 @@ mint "こんにちは"   # ja → en: Hello
 - [x] 多 LLM 提供商支援（Google Gemini、OpenAI、Anthropic，本地透過 Ollama / LM Studio）
 - [x] 透過 `MINT_TARGET_LANG` 實現智慧語言偵測與多語言輪換
 - [x] 透過 `--target` / `-t` 旗標明確指定目標語言
+- [x] 透過 `--source` / `-s` 旗標明確指定來源語言
 - [x] 串流輸出
 - [x] GoReleaser 多平台二進位檔發布（Linux / macOS / Windows）
 - [ ] 批次翻譯模式

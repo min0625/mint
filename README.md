@@ -135,6 +135,13 @@ mint -t ja -v "Good morning"
 # おはようございます
 ```
 
+**Force the source language** with `--source` / `-s` to translate input that is also valid in the target language (cross-language homographs, romanized text):
+
+```bash
+mint -s fr -t en "chat"          # French → cat (without -s, treated as English "chat")
+mint -s ja -t en "konnichiwa"    # romaji Japanese → hello
+```
+
 ### 3. Smart language detection
 
 **Translation with auto-detection:**
@@ -189,6 +196,7 @@ mint "こんにちは"   # ja → en: Hello
 - [x] Multi-LLM provider support (Google Gemini, OpenAI, Anthropic, local via Ollama / LM Studio)
 - [x] Smart language detection and multi-language rotation via `MINT_TARGET_LANG`
 - [x] Explicit target language via `--target` / `-t` flag
+- [x] Explicit source language via `--source` / `-s` flag
 - [x] Streaming output
 - [x] GoReleaser multi-platform binary release (Linux / macOS / Windows)
 - [ ] Batch translation mode

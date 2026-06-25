@@ -179,7 +179,38 @@ export MINT_TARGET_LANG=ja
 mint -t zh-TW "This is an apple."    # 這是一顆蘋果。  (flag wins over env var)
 ```
 
-## 12. Error cases
+## 12. Force the source language (`-s` / `--source` flag)
+
+`-s` / `--source` skips auto-detection and anchors the rewrite prompt to translate *from* the
+given language. Use it for input that is also valid in the target language — cross-language
+homographs and romanized text — which auto-detection would otherwise leave unchanged.
+
+`-v` shows `source language: <tag>` plus `single target — skipping language detection` (single
+target) or `explicit source — skipping language detection` (rotation).
+
+```sh
+# Cross-language homograph: French "chat" is also an English word
+mint -s fr -t en "chat"          # cat        (without -s → "chat", treated as English)
+mint    -t en "chat"             # chat       (auto-detect leaves the English word unchanged)
+
+# Romanized input that auto-detect would treat as already-English
+mint -s ja -t en "konnichiwa"    # hello
+
+# Source == target (exact same tag): a no-op translation falls back to correction
+mint -s en -t en "This are an apple."    # This is an apple.
+
+# Distinct tags sharing a primary subtag: a deliberate script conversion keeps the anchor
+mint -s zh-CN -t zh-TW "这是一个苹果"    # 這是一個蘋果
+
+# Rotation: an explicit source skips the detection call and picks the next tag
+export MINT_TARGET_LANG=zh-TW,en
+mint -s en "Hello"               # 你好  (en matched → next: zh-TW; -v: explicit source — skipping language detection)
+```
+
+`-s` accepts only a single language tag; like `-t`, a comma in the value is truncated to the first tag.
+`--source` is the long form of `-s`. There is no `MINT_SOURCE_LANG` env var — a source is per-input, not a persistent preference.
+
+## 13. Error cases
 
 All errors go to stderr; the process exits with code 1.
 
