@@ -63,9 +63,16 @@ func newRootCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:           "mint [text]",
-		Short:         "Minimalist AI translation CLI",
-		Long:          "Mint is a lightweight, LLM-powered translation tool for the command line.",
+		Use:   "mint [text]",
+		Short: "Minimalist AI translation CLI",
+		Long: "Mint is a lightweight, LLM-powered translation tool for the command line.\n\n" +
+			"Documentation: https://github.com/min0625/mint",
+		Example: "  # Translate a positional argument\n" +
+			"  mint --target ja \"Hello, world!\"\n\n" +
+			"  # Translate piped input\n" +
+			"  echo \"Hello, world!\" | mint -t zh-TW\n\n" +
+			"  # Use the default target (MINT_TARGET_LANG, system locale, or en)\n" +
+			"  mint \"Bonjour le monde\"",
 		Version:       fmt.Sprintf("%s (commit: %s)", version, commit),
 		Args:          cobra.MaximumNArgs(1),
 		SilenceUsage:  true,
