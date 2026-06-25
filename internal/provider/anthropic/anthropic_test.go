@@ -3,6 +3,8 @@
 package anthropic_test
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -32,7 +34,8 @@ data: {"type":"message_stop"}
 	defer srv.Close()
 
 	var sb strings.Builder
-	if _, err := anthropic.New("secret-key", srv.URL, "").Complete(t.Context(), "prompt", &sb); err != nil {
+	if _, err := anthropic.New("secret-key", srv.URL, "").
+		Complete(t.Context(), "system text", "user text", &sb); err != nil {
 		t.Fatalf("Complete returned error: %v", err)
 	}
 
@@ -74,7 +77,7 @@ data: {"type":"message_stop"}
 
 	var sb strings.Builder
 
-	usage, err := anthropic.New("key", srv.URL, "").Complete(t.Context(), "prompt", &sb)
+	usage, err := anthropic.New("key", srv.URL, "").Complete(t.Context(), "system text", "user text", &sb)
 	if err != nil {
 		t.Fatalf("Complete returned error: %v", err)
 	}
@@ -97,7 +100,7 @@ func TestCompleteReturnsErrorOnNon200(t *testing.T) {
 
 	var sb strings.Builder
 
-	_, err := anthropic.New("k", srv.URL, "").Complete(t.Context(), "prompt", &sb)
+	_, err := anthropic.New("k", srv.URL, "").Complete(t.Context(), "system text", "user text", &sb)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -105,4 +108,40 @@ func TestCompleteReturnsErrorOnNon200(t *testing.T) {
 	if !strings.Contains(err.Error(), "401") {
 		t.Errorf("error %q does not mention status 401", err.Error())
 	}
+}
+
+func TestCompleteRoleSeparation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+
+		var req struct {
+			System   string `json:"system"`
+			Messages []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+
+		_ = json.Unmarshal(body, &req)
+
+		if req.System != "my system instruction" {
+			t.Errorf("system field = %q, want %q", req.System, "my system instruction")
+		}
+
+		if len(req.Messages) != 1 || req.Messages[0].Role != "user" {
+			t.Errorf("expected one user message, got %+v", req.Messages)
+		}
+
+		if req.Messages[0].Content != "my user text" {
+			t.Errorf("user content = %q, want %q", req.Messages[0].Content, "my user text")
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"type\":\"message_stop\"}\n"))
+	}))
+	defer srv.Close()
+
+	var sb strings.Builder
+
+	_, _ = anthropic.New("k", srv.URL, "").Complete(t.Context(), "my system instruction", "my user text", &sb)
 }
