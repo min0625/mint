@@ -12,6 +12,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/min0625/mint/internal/llm"
 )
 
 const (
@@ -70,13 +72,24 @@ type streamDelta struct {
 	Text string `json:"text"`
 }
 
+type streamUsage struct {
+	InputTokens  int `json:"input_tokens"`
+	OutputTokens int `json:"output_tokens"`
+}
+
+type streamMessage struct {
+	Usage streamUsage `json:"usage"`
+}
+
 type streamEvent struct {
-	Type  string      `json:"type"`
-	Delta streamDelta `json:"delta"`
+	Type    string        `json:"type"`
+	Delta   streamDelta   `json:"delta"`
+	Message streamMessage `json:"message"`
+	Usage   streamUsage   `json:"usage"`
 }
 
 // Complete calls the Anthropic API with streaming and writes tokens to w as they arrive.
-func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error {
+func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) (llm.Usage, error) {
 	body := requestBody{
 		Model:       c.modelName,
 		MaxTokens:   maxTokens,
@@ -87,12 +100,12 @@ func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error
 
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
-		return fmt.Errorf("marshal request: %w", err)
+		return llm.Usage{}, fmt.Errorf("marshal request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+defaultAPIPath, bytes.NewReader(jsonBody))
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+		return llm.Usage{}, fmt.Errorf("create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -101,17 +114,19 @@ func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("call API: %w", err)
+		return llm.Usage{}, fmt.Errorf("call API: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBytes))
+		return llm.Usage{}, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBytes))
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), maxScanLineBytes)
+
+	var usage llm.Usage
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -126,16 +141,23 @@ func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error
 			continue
 		}
 
-		if event.Type == "content_block_delta" && event.Delta.Type == "text_delta" {
-			if _, err := fmt.Fprint(w, event.Delta.Text); err != nil {
-				return err
+		switch event.Type {
+		case "message_start":
+			usage.InputTokens = event.Message.Usage.InputTokens
+		case "message_delta":
+			usage.OutputTokens = event.Usage.OutputTokens
+		case "content_block_delta":
+			if event.Delta.Type == "text_delta" {
+				if _, err := fmt.Fprint(w, event.Delta.Text); err != nil {
+					return llm.Usage{}, err
+				}
 			}
 		}
 	}
 
 	if _, err := fmt.Fprintln(w); err != nil {
-		return err
+		return llm.Usage{}, err
 	}
 
-	return scanner.Err()
+	return usage, scanner.Err()
 }

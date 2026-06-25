@@ -12,6 +12,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/min0625/mint/internal/llm"
 )
 
 const (
@@ -66,15 +68,21 @@ type generationConfig struct {
 }
 
 type responseBody struct {
-	Candidates []candidate `json:"candidates"`
+	Candidates    []candidate   `json:"candidates"`
+	UsageMetadata usageMetadata `json:"usageMetadata"`
 }
 
 type candidate struct {
 	Content content `json:"content"`
 }
 
+type usageMetadata struct {
+	PromptTokenCount     int `json:"promptTokenCount"`
+	CandidatesTokenCount int `json:"candidatesTokenCount"`
+}
+
 // Complete calls the Google Gemini streaming API and writes tokens to w as they arrive.
-func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error {
+func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) (llm.Usage, error) {
 	body := requestBody{
 		Contents: []content{
 			{Parts: []part{{Text: prompt}}},
@@ -84,14 +92,14 @@ func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error
 
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
-		return fmt.Errorf("marshal request: %w", err)
+		return llm.Usage{}, fmt.Errorf("marshal request: %w", err)
 	}
 
 	url := fmt.Sprintf("%s/v1beta/models/%s:streamGenerateContent?alt=sse", c.baseURL, c.modelName)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+		return llm.Usage{}, fmt.Errorf("create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -103,17 +111,19 @@ func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("call API: %w", err)
+		return llm.Usage{}, fmt.Errorf("call API: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBytes))
+		return llm.Usage{}, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBytes))
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), maxScanLineBytes)
+
+	var usage llm.Usage
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -128,16 +138,22 @@ func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error
 			continue
 		}
 
+		// usageMetadata accumulates across chunks; the last value is the total.
+		if result.UsageMetadata.PromptTokenCount > 0 || result.UsageMetadata.CandidatesTokenCount > 0 {
+			usage.InputTokens = result.UsageMetadata.PromptTokenCount
+			usage.OutputTokens = result.UsageMetadata.CandidatesTokenCount
+		}
+
 		if len(result.Candidates) > 0 && len(result.Candidates[0].Content.Parts) > 0 {
 			if _, err := fmt.Fprint(w, result.Candidates[0].Content.Parts[0].Text); err != nil {
-				return err
+				return llm.Usage{}, err
 			}
 		}
 	}
 
 	if _, err := fmt.Fprintln(w); err != nil {
-		return err
+		return llm.Usage{}, err
 	}
 
-	return scanner.Err()
+	return usage, scanner.Err()
 }

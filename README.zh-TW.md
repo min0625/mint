@@ -127,13 +127,38 @@ echo "The quick brown fox" | mint -t fr
 cat document.txt | mint -t zh-TW
 ```
 
-使用 `--verbose` / `-v` 將診斷資訊（偵測語言、提供商、模型）輸出至 stderr：
+使用 `--verbose` / `-v`（或 `MINT_VERBOSE=true`）將診斷資訊與 token 用量輸出至 stderr：
 
 ```bash
 mint -t ja -v "Good morning"
-# [mint] provider=google-genai model=gemini-3.1-flash-lite detected=en target=ja
+# [mint] provider: google-genai
+# [mint] model: gemini-3.1-flash-lite
+# [mint] single target — skipping language detection
+# [mint] target language: ja
 # おはようございます
+# [mint] tokens: 63 in / 4 out
 ```
+
+**典型 token 用量**（以 `gemini-3.1-flash-lite` 實測）：
+
+| 模式 | 輸入 | API 呼叫次數 | 輸入 tokens | 輸出 tokens |
+|------|------|-------------|------------|------------|
+| 單一目標（`-t` 或單一 `MINT_TARGET_LANG`） | 短詞／短句 | 1 | ~57–65 | ~1–5 |
+| 單一目標 | 長篇文章（`testdata/sample.txt`） | 1 | ~416–420 | ~360–476 |
+| 多目標輪換（逗號分隔 `MINT_TARGET_LANG`） | 短句 | 2 | ~144–148 | ~6–8 |
+| 語言中性直通（數字、符號） | 任意 | 0 | 0 | 0 |
+| 明確來源 `-s` + 輪換 | 短句 | 1 | ~53 | ~1–2 |
+
+> Token 數量隨輸入長度而變；輸出 token 也因目標語言而異——日文與中文通常比英文產生更多 token。
+
+**百萬 token 能翻譯幾次？**（輸入＋輸出合計，由上方實測用量換算）：
+
+| 輸入 | 每次約用 token | 每百萬 token 可翻譯次數 |
+|------|---------------|----------------------|
+| 短詞或短句 | 約 65 | 約 15,000 次 |
+| 300 字文章 | 約 840 | 約 1,200 篇 |
+
+> 次數為輸入與輸出 token 合計。各供應商的輸入與輸出分開計價，且多數提供免費方案——實際費率請參閱供應商定價頁。Google Gemini 於 [Google AI Studio](https://aistudio.google.com/apikey) 的免費方案無需信用卡。
 
 使用 `--source` / `-s` **強制指定來源語言**，可翻譯那些在目標語言中也屬合法的輸入（跨語言同形詞、羅馬拼音文字）：
 
@@ -188,10 +213,22 @@ mint "こんにちは"   # ja → en: Hello
 | `MINT_BASE_URL` | 自訂 API base URL（僅填 domain，各提供商自行附加路徑）；搭配 `openai` 可指向 Ollama（`http://localhost:11434`）、LM Studio（`http://localhost:1234`）或任何 OpenAI 相容端點 | 提供商預設 |
 | `MINT_MODEL_NAME` | 使用的模型 | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` |
 | `MINT_TARGET_LANG` | 目標語言，例如 `en` 或 `en,zh-TW,ja` | 系統區域設定 |
+| `MINT_VERBOSE` | 設為 `true` 可啟用詳細診斷輸出（等同於 `--verbose`） | `false` |
 
 ---
 
-## 🗺 Roadmap
+## 🚩 CLI 旗標
+
+| 旗標 | 縮寫 | 說明 |
+|------|------|------|
+| `--target <lang>` | `-t` | 目標語言（BCP-47 標籤，例如 `ja`、`zh-TW`、`fr`），覆蓋 `MINT_TARGET_LANG`。 |
+| `--source <lang>` | `-s` | 來源語言（BCP-47 標籤）；跳過自動偵測並強制從此語言翻譯。 |
+| `--verbose` | `-v` | 將診斷資訊與 token 用量輸出至 stderr，也可透過 `MINT_VERBOSE=true` 啟用。 |
+| `--version` | | 顯示版本並結束。 |
+
+---
+
+## 📅 Roadmap
 
 - [x] 多 LLM 提供商支援（Google Gemini、OpenAI、Anthropic，本地透過 Ollama / LM Studio）
 - [x] 透過 `MINT_TARGET_LANG` 實現智慧語言偵測與多語言輪換

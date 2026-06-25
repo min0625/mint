@@ -127,13 +127,38 @@ echo "The quick brown fox" | mint -t fr
 cat document.txt | mint -t zh-TW
 ```
 
-Use `--verbose` / `-v` to print diagnostic info (detected language, provider, model) to stderr:
+Use `--verbose` / `-v` (or `MINT_VERBOSE=true`) to print diagnostic info and token usage to stderr:
 
 ```bash
 mint -t ja -v "Good morning"
-# [mint] provider=google-genai model=gemini-3.1-flash-lite detected=en target=ja
+# [mint] provider: google-genai
+# [mint] model: gemini-3.1-flash-lite
+# [mint] single target — skipping language detection
+# [mint] target language: ja
 # おはようございます
+# [mint] tokens: 63 in / 4 out
 ```
+
+**Typical token usage** (measured on `gemini-3.1-flash-lite`):
+
+| Mode | Input | Calls | Input tokens | Output tokens |
+|------|-------|-------|-------------|---------------|
+| Single-target (`-t` or single `MINT_TARGET_LANG`) | short word/sentence | 1 | ~57–65 | ~1–5 |
+| Single-target | long article (`testdata/sample.txt`) | 1 | ~416–420 | ~360–476 |
+| Multi-target rotation (comma-separated `MINT_TARGET_LANG`) | short sentence | 2 | ~144–148 | ~6–8 |
+| Language-neutral pass-through (numbers, symbols) | any | 0 | 0 | 0 |
+| Explicit source `-s` + rotation | short sentence | 1 | ~53 | ~1–2 |
+
+> Token counts scale with input length. Output tokens vary by target language — Japanese and Chinese tend to produce more tokens than English for equivalent content.
+
+**How far does 1M tokens go?** (input + output combined, derived from the measured usage above):
+
+| Input | ~Tokens per translation | Translations per 1M tokens |
+|-------|------------------------|----------------------------|
+| Short word or phrase | ~65 | ~15,000 |
+| 300-word article | ~840 | ~1,200 |
+
+> Counts combine input and output tokens. Providers price input and output separately and many offer free tiers — check your provider's pricing page for current rates. Google Gemini's free tier at [Google AI Studio](https://aistudio.google.com/apikey) needs no credit card.
 
 **Force the source language** with `--source` / `-s` to translate input that is also valid in the target language (cross-language homographs, romanized text):
 
@@ -188,10 +213,22 @@ mint "こんにちは"   # ja → en: Hello
 | `MINT_BASE_URL` | Custom API base URL (domain only; each provider appends its own path); use with `openai` to target Ollama (`http://localhost:11434`), LM Studio (`http://localhost:1234`), or any other OpenAI-compatible endpoint | Provider default |
 | `MINT_MODEL_NAME` | Model to use | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` |
 | `MINT_TARGET_LANG` | Target language(s), e.g. `en` or `en,zh-TW,ja` | System locale |
+| `MINT_VERBOSE` | Set to `true` to enable verbose diagnostic output (equivalent to `--verbose`) | `false` |
 
 ---
 
-## 🗺 Roadmap
+## 🚩 CLI Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--target <lang>` | `-t` | Target language (BCP-47 tag, e.g. `ja`, `zh-TW`, `fr`). Overrides `MINT_TARGET_LANG`. |
+| `--source <lang>` | `-s` | Source language (BCP-47 tag); skips auto-detection and forces translation from this language. |
+| `--verbose` | `-v` | Print diagnostic info and token usage to stderr. Also enabled by `MINT_VERBOSE=true`. |
+| `--version` | | Print version and exit. |
+
+---
+
+## 📅 Roadmap
 
 - [x] Multi-LLM provider support (Google Gemini, OpenAI, Anthropic, local via Ollama / LM Studio)
 - [x] Smart language detection and multi-language rotation via `MINT_TARGET_LANG`
