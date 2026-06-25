@@ -35,6 +35,24 @@ cat document.txt | mint -t fr     # ファイル全体を翻訳
 
 ## 📋 インストール
 
+### 自動インストール（推奨）
+
+**macOS / Linux**
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"
+```
+
+OSとアーキテクチャ（Linux/macOS、x86_64/arm64）を自動検出し、`~/.local/bin`にインストールします。`MINT_INSTALL_DIR`でインストール先を変更したり、`MINT_VERSION=v1.0.0`でバージョンを指定したりすることも可能です。
+
+**Windows（PowerShell）**
+
+```powershell
+irm https://raw.githubusercontent.com/min0625/mint/main/script/install.ps1 | iex
+```
+
+アーキテクチャ（x86_64/arm64）を自動検出し、`$HOME\.local\bin`にインストールします。`$env:MINT_INSTALL_DIR`でインストール先を変更したり、`$env:MINT_VERSION = 'v1.0.0'`でバージョンを指定したりすることも可能です。
+
 ### Homebrew (macOS / Linux)
 
 ```bash
@@ -53,35 +71,9 @@ pipx install mint-ai
 npm install -g mint-ai
 ```
 
-### 自動インストール
-
-**macOS / Linux**
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"
-```
-
-OSとアーキテクチャ（Linux/macOS、x86_64/arm64）を自動検出し、`~/.local/bin`にインストールします。`MINT_INSTALL_DIR`でインストール先を変更したり、`MINT_VERSION=v1.0.0`でバージョンを指定したりすることも可能です。
-
-**Windows（PowerShell）**
-
-```powershell
-irm https://raw.githubusercontent.com/min0625/mint/main/script/install.ps1 | iex
-```
-
-アーキテクチャ（x86_64/arm64）を自動検出し、`$HOME\.local\bin`にインストールします。`$env:MINT_INSTALL_DIR`でインストール先を変更したり、`$env:MINT_VERSION = 'v1.0.0'`でバージョンを指定したりすることも可能です。
-
-### go install
-
-```bash
-go install github.com/min0625/mint/cmd/mint@latest
-```
-
-Go 1.26以上が必要です。バイナリは`$GOPATH/bin`（通常は`~/go/bin`）に配置されます。
-
 ### 手動ダウンロード
 
-プリコンパイル済みのバイナリは [GitHub Releases](https://github.com/min0625/mint/releases) から入手できます。
+[GitHub Releases](https://github.com/min0625/mint/releases) からお使いのプラットフォーム向けのビルド済みバイナリをダウンロードし、`PATH` の通ったディレクトリに移動してから、動作を確認します：
 
 ```bash
 mint --version
@@ -136,18 +128,17 @@ mint -t ja -v "Good morning"
 # [mint] single target — skipping language detection
 # [mint] target language: ja
 # おはようございます
-# [mint] tokens: 63 in / 4 out
+# [mint] tokens: 113 in / 2 out
 ```
 
 **典型的なトークン使用量**（`gemini-3.1-flash-lite` での実測値）：
 
 | モード | 入力 | API呼び出し回数 | 入力トークン | 出力トークン |
 |--------|------|---------------|------------|------------|
-| 単一ターゲット（`-t` または単一 `MINT_TARGET_LANG`） | 短い単語・文章 | 1 | ~57–65 | ~1–5 |
-| 単一ターゲット | 長い文章（`testdata/sample.txt`） | 1 | ~416–420 | ~360–476 |
-| 多言語ローテーション（カンマ区切り `MINT_TARGET_LANG`） | 短い文章 | 2 | ~144–148 | ~6–8 |
-| 言語中立パススルー（数字・記号） | 任意 | 0 | 0 | 0 |
-| 明示的ソース `-s` + ローテーション | 短い文章 | 1 | ~53 | ~1–2 |
+| 単一ターゲット（`-t` または単一 `MINT_TARGET_LANG`） | 短い単語・文章 | 1 | ~110–130 | ~1–15 |
+| 単一ターゲット | 長い文章（`testdata/sample.txt`） | 1 | ~465–470 | ~450–560 |
+| 多言語ローテーション（カンマ区切り `MINT_TARGET_LANG`） | 短い文章 | 2 | ~250–260 | ~2–8 |
+| 明示的ソース `-s` + ローテーション | 短い文章 | 1 | ~105–120 | ~1–2 |
 
 > トークン数は入力の長さによって変わります。また出力トークンは言語によっても異なり、日本語や中国語は英語より多くなる傾向があります。
 
@@ -155,15 +146,15 @@ mint -t ja -v "Good morning"
 
 | 入力 | 1回あたりのトークン数 | 100万トークンでの翻訳回数 |
 |------|---------------------|------------------------|
-| 短い単語・文章 | 約65 | 約15,000回 |
-| 300語の文章 | 約840 | 約1,200件 |
+| 短い単語・文章 | 約120 | 約8,000回 |
+| 300語の文章 | 約1,000 | 約1,000件 |
 
 > 回数は入力と出力のトークンを合計したものです。各プロバイダーは入力と出力を別々に課金し、多くが無料枠を提供しています——実際の料金は各プロバイダーの価格ページをご確認ください。GoogleのGeminiは[Google AI Studio](https://aistudio.google.com/apikey)の無料枠をクレジットカードなしで利用できます。
 
 `--source` / `-s` で**ソース言語を強制指定**すると、ターゲット言語としても有効な入力（言語をまたぐ同形異義語、ローマ字表記のテキスト）を翻訳できます：
 
 ```bash
-mint -s fr -t en "chat"          # フランス語 → cat（-s なしでは英語の "chat" として扱われる）
+mint -s fr -t en "pain"          # フランス語 → bread（-s なしでは英語の "pain" として扱われる）
 mint -s ja -t en "konnichiwa"    # ローマ字の日本語 → hello
 ```
 

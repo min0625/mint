@@ -5,53 +5,13 @@ See [README.md](./README.md) for full project overview.
 
 ## Installation
 
-### pipx
+End-user install methods (pipx, npm, one-liner script, manual download) are documented in
+[README.md](./README.md). The install script lives at [script/install.sh](./script/install.sh).
+
+For local development, build from source with `make build` (see below) or:
 
 ```bash
-pipx install mint-ai
-```
-
-### npm
-
-```bash
-npm install -g mint-ai
-```
-
-### Automated install (one-liner)
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/min0625/mint/main/script/install.sh)"
-```
-
-Auto-detects OS and architecture (Linux/macOS, x86_64/arm64), verifies SHA256 checksums,
-and installs to `~/.local/bin`. Override with `MINT_INSTALL_DIR` or pin a version with `MINT_VERSION=v1.0.0`.
-
-### go install
-
-```bash
-go install github.com/min0625/mint/cmd/mint@latest
-```
-
-Requires Go 1.26.4+. Binary lands in `$GOPATH/bin` (usually `~/go/bin`).
-
-### Manual download
-
-Pre-built binaries at [GitHub Releases](https://github.com/min0625/mint/releases):
-
-```bash
-# Linux x86_64
-curl -L https://github.com/min0625/mint/releases/latest/download/mint_linux_amd64.tar.gz \
-  | tar xz && sudo mv mint /usr/local/bin/
-
-# macOS Apple Silicon
-curl -L https://github.com/min0625/mint/releases/latest/download/mint_darwin_arm64.tar.gz \
-  | tar xz && sudo mv mint /usr/local/bin/
-
-# macOS Intel
-curl -L https://github.com/min0625/mint/releases/latest/download/mint_darwin_amd64.tar.gz \
-  | tar xz && sudo mv mint /usr/local/bin/
-
-# Windows — download mint_windows_amd64.zip from releases and extract to a directory in PATH
+go install github.com/min0625/mint/cmd/mint@latest   # Go 1.26.4+; binary → $GOPATH/bin
 ```
 
 ## Build & Test Commands
@@ -69,59 +29,15 @@ make release-snapshot  # goreleaser release --snapshot --clean (test release loc
 Tool versions are pinned in [mise.toml](./mise.toml) (Go 1.26.4, golangci-lint 2.12.2, goreleaser 2.16.0).
 Run `mise install` to set up the exact toolchain.
 
-## PyPI Distribution (Python Wheels)
+## Distribution
 
-Mint is published to PyPI as `mint-ai` for easy installation via Python package managers:
+Mint is published to PyPI as `mint-ai` and to npm as `mint-ai` (the command stays `mint`).
+Wheels wrap the goreleaser-built binaries; the assembly script and per-platform packaging
+live under [pypi/](./pypi/) (`build_wheels.py`) and [npm/](./npm/). For local wheel-build/test
+steps see [pypi/](./pypi/).
 
-```bash
-pip install mint-ai
-# or
-pipx install mint-ai
-```
-
-After installation, the command is `mint` (not `mint-ai`), driven by the entry point in `pypi/pyproject.toml`.
-
-### Local Testing of Wheels
-
-```bash
-# Step 1: Build platform-specific binaries (all platforms)
-make release-snapshot
-
-# Step 2: Build Python wheel(s)
-cd pypi
-# For current platform only (recommended for local testing to avoid platform mismatches)
-python build_wheels.py \
-  --version 0.1.0 \
-  --dist-dir ../dist \
-  --out-dir ../dist/wheels \
-  --current-platform-only
-
-# Step 3: Install and test locally
-# Use --find-links so pip auto-selects the compatible wheel (avoids glob ambiguity)
-pipx install mint-ai --pip-args="--find-links ../dist/wheels --no-index" --force
-
-# Step 4: Verify
-mint --target en "Hello, world!"
-```
-
-**PyPI Release Workflow:**
-1. Push tag: `git tag v1.0.0 && git push origin v1.0.0`
-2. GitHub Actions triggers `release.yml` → builds multi-platform binaries
-3. GitHub Actions triggers `publish-pypi.yml` → assembles wheels → uploads to PyPI
-4. Final users: `pip install mint-ai` (PyPI auto-selects correct platform)
-
-### Directory Structure
-
-```
-pypi/
-  mint/
-    __init__.py              # Python wrapper; locates and execs bundled binary
-    __main__.py              # Enables `python -m mint`
-  pyproject.toml             # Package metadata; specifies entry point `mint = mint:main`
-  build_wheels.py            # Assembles wheels from goreleaser dist/ binaries
-.github/workflows/publish-pypi.yml # CI: download binaries → assemble wheels → upload to PyPI
-.goreleaser.yaml             # Configure archive names for wheel building
-```
+**Release trigger:** push a tag matching `v*.*.*` → `release.yml` builds multi-platform
+binaries → `publish-pypi.yml` assembles wheels and uploads to PyPI.
 
 ## Project Layout
 

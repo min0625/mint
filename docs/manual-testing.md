@@ -189,9 +189,9 @@ homographs and romanized text — which auto-detection would otherwise leave unc
 target) or `explicit source — skipping language detection` (rotation).
 
 ```sh
-# Cross-language homograph: French "chat" is also an English word
-mint -s fr -t en "chat"          # cat        (without -s → "chat", treated as English)
-mint    -t en "chat"             # chat       (auto-detect leaves the English word unchanged)
+# Cross-language homograph: French "pain" (bread) is spelled like English "pain" (ache)
+mint -s fr -t en "pain"          # bread      (without -s → "pain", treated as English)
+mint    -t en "pain"             # pain       (auto-detect leaves the English word unchanged)
 
 # Romanized input that auto-detect would treat as already-English
 mint -s ja -t en "konnichiwa"    # hello
