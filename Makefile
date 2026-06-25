@@ -11,16 +11,16 @@ build:
 .PHONY: fix
 fix:
 	go mod tidy
-	golangci-lint run --new-from-rev=$(NEW_FROM_REV) -v --fix ./...
+	golangci-lint run --new-from-rev=$(NEW_FROM_REV) --fix ./...
 
 .PHONY: lint
 lint:
 	golangci-lint config verify
-	golangci-lint run --new-from-rev=$(NEW_FROM_REV) -v ./...
+	golangci-lint run --new-from-rev=$(NEW_FROM_REV) ./...
 
 .PHONY: test
 test:
-	go test -race -failfast -v ./...
+	go test -race -failfast ./...
 
 .PHONY: cover
 cover:

@@ -154,7 +154,7 @@ bin/mint                             # compiled binary (gitignored)
 
 ## Documentation
 
-- **Multilingual README sync** — `README.md` (English) and `README.zh-TW.md` (Traditional Chinese) must always be kept in sync. Whenever one is updated, apply the equivalent change to the other. New README language variants follow the pattern `README.<locale>.md`.
+- **Multilingual README sync** — **all** README variants must be kept in sync: `README.md` (English, the canonical source) and every `README.<locale>.md` translation. [LANGUAGES.md](./LANGUAGES.md) is the authoritative list of variants — consult it first to confirm the full set, since new languages are added over time. Whenever one README is updated, apply the equivalent change to *every* other variant listed there. New README language variants follow the pattern `README.<locale>.md`.
 - **Language list** — the list of available languages lives **only** in [LANGUAGES.md](./LANGUAGES.md). Each README links to it with a single static line, written **in that README's own language** (e.g. English: `🌐 Other languages`; Traditional Chinese: `🌐 其他語言`). This line never changes when languages are added. To add a language: create `README.<locale>.md` and add one entry to `LANGUAGES.md` — do **not** add a per-language switcher row to every README.
 - **Absolute URLs in README headers** — `README.md` is shipped as the PyPI long-description and the npm package readme. PyPI does **not** rewrite relative links, so the `LANGUAGES.md` link in each README must be an **absolute** GitHub URL (`https://github.com/min0625/mint/blob/main/LANGUAGES.md`). Links *inside* `LANGUAGES.md` may stay relative — that file is GitHub-only (not packaged into PyPI/npm).
 
@@ -171,11 +171,12 @@ bin/mint                             # compiled binary (gitignored)
 
 ## Key Design Decisions
 
-- CLI framework: `github.com/spf13/cobra` — root command with `--target` / `-t` (target language) and `--verbose` / `-v` (diagnostic output to stderr) flags.
+- CLI framework: `github.com/spf13/cobra` — root command with `--target` / `-t` (target language), `--source` / `-s` (source language), and `--verbose` / `-v` (diagnostic output to stderr) flags.
 - Configuration: `github.com/spf13/viper` — reads env vars with `MINT_` prefix; no config files.
 - LLM backends called directly via raw `net/http` (no heavy SDKs); keeps binary minimal.
 - `Completer` interface in `internal/llm/` allows provider backends without breaking changes.
-- Language detection: always runs via LLM before translation; detects BCP-47 tag or `neutral` for language-agnostic content (numbers, symbols).
+- Language detection: when no source language is given, the input language is inferred — by the LLM in rotation mode, or implicitly by the rewrite prompt for a single target.
+- Source language: optional `--source` / `-s` flag (BCP-47 tag); flag-only, no env var (a source is per-input, not a persistent preference). When set it skips detection and anchors the rewrite prompt to translate *from* that language, so cross-language homographs (e.g. French `chat` → English `cat`) and romanized input (e.g. `konnichiwa` → `hello`) are translated rather than treated as already-target text. Empty (the default) preserves the original auto-detect behavior. Pure language-neutral input still passes through unchanged regardless.
 - Language-neutral pass-through: if detected language is `neutral`, input is printed unchanged with no translation call.
 - Same-language behavior: if detected input language matches the target language, the tool performs grammar and spelling correction instead of translation.
 - Target language priority: `--target` flag → `MINT_TARGET_LANG` env var → system locale (`$LANG` / `$LC_ALL`) → `en`.

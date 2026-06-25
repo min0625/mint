@@ -135,6 +135,13 @@ mint -t ja -v "Good morning"
 # おはようございます
 ```
 
+`--source` / `-s` で**ソース言語を強制指定**すると、ターゲット言語としても有効な入力（言語をまたぐ同形異義語、ローマ字表記のテキスト）を翻訳できます：
+
+```bash
+mint -s fr -t en "chat"          # フランス語 → cat（-s なしでは英語の "chat" として扱われる）
+mint -s ja -t en "konnichiwa"    # ローマ字の日本語 → hello
+```
+
 ### 3. インテリジェント言語検出
 
 **自動検出と翻訳：**
@@ -189,6 +196,7 @@ mint "こんにちは"   # ja → en: Hello
 - [x] 複数のLLMプロバイダー対応（Google Gemini、OpenAI、Anthropic、ローカルのOllama / LM Studio）
 - [x] `MINT_TARGET_LANG` による言語自動検出と多言語ローテーション
 - [x] `--target` / `-t` フラグによるターゲット言語の明示的指定
+- [x] `--source` / `-s` フラグによるソース言語の明示的指定
 - [x] ストリーミング出力
 - [x] GoReleaserによるマルチプラットフォームバイナリ配布（Linux / macOS / Windows）
 - [ ] バッチ翻訳モード

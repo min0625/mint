@@ -59,6 +59,7 @@ func newRootCmd() *cobra.Command {
 
 	var (
 		targetLangFlag string
+		sourceLangFlag string
 		verboseFlag    bool
 	)
 
@@ -72,7 +73,10 @@ func newRootCmd() *cobra.Command {
 			"  # Translate piped input\n" +
 			"  echo \"Hello, world!\" | mint -t zh-TW\n\n" +
 			"  # Use the default target (MINT_TARGET_LANG, system locale, or en)\n" +
-			"  mint \"Bonjour le monde\"",
+			"  mint \"Bonjour le monde\"\n\n" +
+			"  # Force the source language (translates cross-language homographs\n" +
+			"  # instead of treating them as already-target text)\n" +
+			"  mint --source fr --target en \"chat\"",
 		Version:       fmt.Sprintf("%s (commit: %s)", version, commit),
 		Args:          cobra.MaximumNArgs(1),
 		SilenceUsage:  true,
@@ -119,6 +123,15 @@ func newRootCmd() *cobra.Command {
 			// Resolve target languages based on priority
 			targetLangs := resolveTargetLangs(targetLangFlag, cfg.TargetLang)
 
+			// Resolve the source language. Empty means "auto-detect" (the
+			// default); a non-empty value skips detection and anchors the
+			// rewrite prompt so cross-language homographs are translated rather
+			// than treated as already-target text.
+			sourceLang := resolveSourceLang(sourceLangFlag)
+			if sourceLang != "" {
+				logv("source language: %s", sourceLang)
+			}
+
 			// Determine the target language.
 			//
 			// Single target (the common case — always so with --target): skip the
@@ -131,23 +144,33 @@ func newRootCmd() *cobra.Command {
 			// call, so we halve latency and token cost for every translation.
 			//
 			// Rotation (multiple targets): we must know the input language to
-			// pick the *next* tag in the list, so detection still runs here.
+			// pick the *next* tag in the list — so detection runs here, unless
+			// an explicit --source already tells us the input language.
 			var actualTargetLang string
 
-			if len(targetLangs) == 1 {
-				// Short-circuit for language-neutral content (no letters): no LLM
-				// call needed — output unchanged, same as the multi-target path.
-				if isLangNeutral(text) {
-					logv("language-neutral content — outputting unchanged")
-					fmt.Println(text)
+			// Short-circuit for language-neutral content (no letters: numbers,
+			// symbols): no LLM call needed — output unchanged, regardless of
+			// target/source mode. The detection path below keeps its own check
+			// for input the LLM classifies as neutral despite containing letters.
+			if isLangNeutral(text) {
+				logv("language-neutral content — outputting unchanged")
+				fmt.Println(text)
 
-					return nil
-				}
+				return nil
+			}
 
+			switch {
+			case len(targetLangs) == 1:
 				actualTargetLang = targetLangs[0]
 
 				logv("single target — skipping language detection")
-			} else {
+			case sourceLang != "":
+				// Rotation with an explicit source language: pick the next
+				// target directly, no detection call needed.
+				logv("explicit source — skipping language detection")
+
+				actualTargetLang = determineActualTargetLang(sourceLang, targetLangs)
+			default:
 				inputLang, err := detectLanguage(ctx, t, text)
 				if err != nil {
 					return fmt.Errorf("language detection failed: %w", err)
@@ -173,12 +196,7 @@ func newRootCmd() *cobra.Command {
 			// spelling along the way. Anchoring on the target tag also pins the
 			// output script, so the model can't drift into the wrong variant
 			// (e.g. Simplified for zh-TW).
-			prompt := fmt.Sprintf(
-				"Rewrite the text inside <text> tags in %s, correcting any grammar and spelling errors.\n"+
-					"Output ONLY the resulting text — no labels, no explanation, no preamble.\n\n"+
-					"<text>\n%s\n</text>",
-				actualTargetLang, text,
-			)
+			prompt := buildRewritePrompt(sourceLang, actualTargetLang, text)
 
 			if err := t.Complete(ctx, prompt, os.Stdout); err != nil {
 				return fmt.Errorf("translation failed: %w", err)
@@ -189,6 +207,8 @@ func newRootCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&targetLangFlag, "target", "t", "", "target language (BCP-47 tag, e.g. ja, zh-TW, fr)")
+	cmd.Flags().
+		StringVarP(&sourceLangFlag, "source", "s", "", "source language (BCP-47 tag); skips auto-detection and forces translation from this language")
 	cmd.Flags().BoolVarP(&verboseFlag, "verbose", "v", false, "print diagnostic info to stderr")
 
 	return cmd
@@ -253,6 +273,65 @@ func resolveTargetLangs(flagLang, configLang string) []string {
 
 	// Priority 4: Default to "en" (single language only)
 	return []string{"en"}
+}
+
+// resolveSourceLang normalizes the --source flag into a bare BCP-47 tag.
+// An empty result means "auto-detect" — the default behavior. Only a single
+// tag is meaningful as a source, so any comma-separated remainder is dropped.
+func resolveSourceLang(flagLang string) string {
+	if flagLang == "" {
+		return ""
+	}
+
+	flagLang = strings.ToLower(strings.TrimSpace(flagLang))
+
+	// A source is a single language; ignore anything after the first comma.
+	if first, _, found := strings.Cut(flagLang, ","); found {
+		flagLang = strings.TrimSpace(first)
+	}
+
+	return flagLang
+}
+
+// buildRewritePrompt builds the rewrite prompt for the target language.
+//
+// With no source language (sourceLang == ""), it asks the model to rewrite the
+// text in the target language — translating it if it is in another language,
+// otherwise correcting it in place. The model infers the input language itself,
+// so input that is also valid in the target language is left as-is (correction
+// only). The explicit "translate if in another language" clause matters: without
+// it, some models (e.g. Anthropic Claude) read "rewrite in <target>" as a
+// proof-reading task and pass foreign text through unchanged instead of
+// translating it.
+//
+// With an explicit source language, the prompt names it and asks for a
+// translation. This forces cross-language homographs (e.g. French "chat" →
+// English "cat") and romanized input (e.g. "konnichiwa" → "hello") to be
+// translated rather than treated as already-target text.
+//
+// When the source and target are the exact same tag (e.g. -s en -t en),
+// "translate from en into en" is a no-op, so we fall back to the rewrite
+// (correction-only) phrasing. The check is exact equality, not langMatches:
+// distinct tags sharing a primary subtag (e.g. zh-CN → zh-TW) are a deliberate
+// script conversion and must keep the source anchor.
+func buildRewritePrompt(sourceLang, targetLang, text string) string {
+	if sourceLang != "" && sourceLang != targetLang {
+		return fmt.Sprintf(
+			"The text inside <text> tags is written in %s.\n"+
+				"Translate it into %s, correcting any grammar and spelling errors.\n"+
+				"Output ONLY the resulting text — no labels, no explanation, no preamble.\n\n"+
+				"<text>\n%s\n</text>",
+			sourceLang, targetLang, text,
+		)
+	}
+
+	return fmt.Sprintf(
+		"Rewrite the text inside <text> tags in %s: if it is in another language, "+
+			"translate it into %s; otherwise correct any grammar and spelling errors.\n"+
+			"Output ONLY the resulting text — no labels, no explanation, no preamble.\n\n"+
+			"<text>\n%s\n</text>",
+		targetLang, targetLang, text,
+	)
 }
 
 // getSystemLanguage gets the system language from the OS locale.

@@ -562,3 +562,149 @@ func TestRunError(t *testing.T) {
 		t.Errorf("expected exit code 1, got %d", code)
 	}
 }
+
+func TestResolveSourceLang(t *testing.T) {
+	tests := []struct {
+		name string
+		flag string
+		want string
+	}{
+		{"empty means auto-detect", "", ""},
+		{"normalized to lowercase", "FR", "fr"},
+		{"trimmed of whitespace", "  ja  ", "ja"},
+		{"comma uses first part only", "fr,en", "fr"},
+		{"comma with whitespace trimmed", " fr , en ", "fr"},
+		{"bcp-47 variant preserved", "zh-TW", langZhTw},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveSourceLang(tt.flag); got != tt.want {
+				t.Errorf("resolveSourceLang(%q) = %q, want %q", tt.flag, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildRewritePrompt(t *testing.T) {
+	// Without a source language: rewrite (model infers input language).
+	noSrc := buildRewritePrompt("", "en", "chat")
+	if !strings.Contains(noSrc, "Rewrite the text") {
+		t.Errorf("expected rewrite phrasing, got: %q", noSrc)
+	}
+
+	// The no-source prompt must instruct the model to translate foreign input
+	// (not just proof-read it) so providers like Claude don't pass CJK→en input
+	// through unchanged.
+	if !strings.Contains(noSrc, "in another language") {
+		t.Errorf("expected conditional-translate clause without --source, got: %q", noSrc)
+	}
+
+	if !strings.Contains(noSrc, "translate it into en") {
+		t.Errorf("expected translate instruction without --source, got: %q", noSrc)
+	}
+
+	// With a source language: anchor it and force a translation.
+	withSrc := buildRewritePrompt("fr", "en", "chat")
+	if !strings.Contains(withSrc, "written in fr") {
+		t.Errorf("expected source anchor 'written in fr', got: %q", withSrc)
+	}
+
+	if !strings.Contains(withSrc, "Translate it into en") {
+		t.Errorf("expected translate instruction, got: %q", withSrc)
+	}
+
+	// Source == target (exact same tag): no-op translation, so fall back to
+	// the rewrite (correction-only) phrasing rather than "translate en→en".
+	sameTag := buildRewritePrompt("en", "en", "helo")
+	if !strings.Contains(sameTag, "Rewrite the text") {
+		t.Errorf("expected rewrite phrasing when source == target, got: %q", sameTag)
+	}
+
+	if strings.Contains(sameTag, "written in") {
+		t.Errorf("did not expect a source anchor when source == target, got: %q", sameTag)
+	}
+
+	// Distinct tags sharing a primary subtag are a deliberate script
+	// conversion (zh-CN → zh-TW) and must keep the source anchor.
+	scriptConv := buildRewritePrompt("zh-cn", langZhTw, "汉字")
+	if !strings.Contains(scriptConv, "written in zh-cn") {
+		t.Errorf("expected source anchor for script conversion, got: %q", scriptConv)
+	}
+}
+
+// TestNewRootCmdSourceLang verifies that --source anchors the rewrite prompt
+// with the source language so the model is told to translate from it.
+func TestNewRootCmdSourceLang(t *testing.T) {
+	var gotBody string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"cat\"}}]}\n\ndata: [DONE]\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+
+	flush := captureStdout(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--source", "fr", argTarget, "en", "chat"})
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		_ = flush()
+
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := flush()
+	if !strings.Contains(out, "cat") {
+		t.Errorf("expected 'cat' in output, got: %q", out)
+	}
+
+	if !strings.Contains(gotBody, "written in fr") {
+		t.Errorf("expected request prompt to anchor source 'fr', got body: %q", gotBody)
+	}
+}
+
+// TestNewRootCmdSourceRotation verifies that an explicit --source skips the
+// language-detection call in rotation mode: only the rewrite call is made.
+func TestNewRootCmdSourceRotation(t *testing.T) {
+	var calls int
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"\\u4f60\\u597d\"}}]}\n\ndata: [DONE]\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+	t.Setenv("MINT_TARGET_LANG", "en,zh-TW")
+
+	flush := captureStdout(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--source", "en", "Hello"})
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		_ = flush()
+
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	_ = flush()
+
+	if calls != 1 {
+		t.Errorf("expected exactly 1 LLM call (no detection), got %d", calls)
+	}
+}
