@@ -29,7 +29,7 @@ data: {"candidates":[{"content":{"parts":[{"text":" world"}]}}]}
 	defer srv.Close()
 
 	var sb strings.Builder
-	if err := googlegenai.New("secret-key", srv.URL, "").Complete(t.Context(), "prompt", &sb); err != nil {
+	if _, err := googlegenai.New("secret-key", srv.URL, "").Complete(t.Context(), "prompt", &sb); err != nil {
 		t.Fatalf("Complete returned error: %v", err)
 	}
 
@@ -54,6 +54,32 @@ func TestNewUsesDefaultBaseURL(t *testing.T) {
 	}
 }
 
+func TestCompleteReturnsUsage(t *testing.T) {
+	const sse = `data: {"candidates":[{"content":{"parts":[{"text":"Hi"}]}}],"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":2}}
+`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(sse))
+	}))
+	defer srv.Close()
+
+	var sb strings.Builder
+
+	usage, err := googlegenai.New("key", srv.URL, "").Complete(t.Context(), "prompt", &sb)
+	if err != nil {
+		t.Fatalf("Complete returned error: %v", err)
+	}
+
+	if usage.InputTokens != 8 {
+		t.Errorf("InputTokens = %d, want 8", usage.InputTokens)
+	}
+
+	if usage.OutputTokens != 2 {
+		t.Errorf("OutputTokens = %d, want 2", usage.OutputTokens)
+	}
+}
+
 func TestCompleteReturnsErrorOnNon200(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
@@ -63,7 +89,7 @@ func TestCompleteReturnsErrorOnNon200(t *testing.T) {
 
 	var sb strings.Builder
 
-	err := googlegenai.New("k", srv.URL, "").Complete(t.Context(), "prompt", &sb)
+	_, err := googlegenai.New("k", srv.URL, "").Complete(t.Context(), "prompt", &sb)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

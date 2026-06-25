@@ -12,6 +12,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/min0625/mint/internal/llm"
 )
 
 const (
@@ -50,10 +52,11 @@ func New(apiKey, baseURL, modelName string) *Client {
 }
 
 type requestBody struct {
-	Model       string    `json:"model"`
-	Messages    []message `json:"messages"`
-	Temperature float64   `json:"temperature"`
-	Stream      bool      `json:"stream"`
+	Model         string        `json:"model"`
+	Messages      []message     `json:"messages"`
+	Temperature   float64       `json:"temperature"`
+	Stream        bool          `json:"stream"`
+	StreamOptions streamOptions `json:"stream_options"`
 }
 
 type message struct {
@@ -65,31 +68,42 @@ type streamDelta struct {
 	Content string `json:"content"`
 }
 
+type streamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
+}
+
+type streamUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+}
+
 type streamChoice struct {
 	Delta streamDelta `json:"delta"`
 }
 
 type streamResponse struct {
 	Choices []streamChoice `json:"choices"`
+	Usage   *streamUsage   `json:"usage"`
 }
 
 // Complete calls the OpenAI API with streaming and writes tokens to w as they arrive.
-func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error {
+func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) (llm.Usage, error) {
 	body := requestBody{
-		Model:       c.modelName,
-		Messages:    []message{{Role: "user", Content: prompt}},
-		Temperature: 0.3,
-		Stream:      true,
+		Model:         c.modelName,
+		Messages:      []message{{Role: "user", Content: prompt}},
+		Temperature:   0.3,
+		Stream:        true,
+		StreamOptions: streamOptions{IncludeUsage: true},
 	}
 
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
-		return fmt.Errorf("marshal request: %w", err)
+		return llm.Usage{}, fmt.Errorf("marshal request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+defaultAPIPath, bytes.NewReader(jsonBody))
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+		return llm.Usage{}, fmt.Errorf("create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -97,17 +111,19 @@ func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("call API: %w", err)
+		return llm.Usage{}, fmt.Errorf("call API: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBytes))
+		return llm.Usage{}, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBytes))
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), maxScanLineBytes)
+
+	var usage llm.Usage
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -125,16 +141,21 @@ func (c *Client) Complete(ctx context.Context, prompt string, w io.Writer) error
 			continue
 		}
 
+		if sr.Usage != nil {
+			usage.InputTokens = sr.Usage.PromptTokens
+			usage.OutputTokens = sr.Usage.CompletionTokens
+		}
+
 		if len(sr.Choices) > 0 {
 			if _, err := fmt.Fprint(w, sr.Choices[0].Delta.Content); err != nil {
-				return err
+				return llm.Usage{}, err
 			}
 		}
 	}
 
 	if _, err := fmt.Fprintln(w); err != nil {
-		return err
+		return llm.Usage{}, err
 	}
 
-	return scanner.Err()
+	return usage, scanner.Err()
 }

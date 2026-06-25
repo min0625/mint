@@ -29,7 +29,7 @@ data: [DONE]
 	defer srv.Close()
 
 	var sb strings.Builder
-	if err := openai.New("secret-key", srv.URL, "").Complete(t.Context(), "prompt", &sb); err != nil {
+	if _, err := openai.New("secret-key", srv.URL, "").Complete(t.Context(), "prompt", &sb); err != nil {
 		t.Fatalf("Complete returned error: %v", err)
 	}
 
@@ -49,6 +49,36 @@ func TestNewUsesDefaultBaseURL(t *testing.T) {
 	}
 }
 
+func TestCompleteReturnsUsage(t *testing.T) {
+	const sse = `data: {"choices":[{"delta":{"content":"Hi"}}]}
+
+data: {"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":2}}
+
+data: [DONE]
+`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(sse))
+	}))
+	defer srv.Close()
+
+	var sb strings.Builder
+
+	usage, err := openai.New("key", srv.URL, "").Complete(t.Context(), "prompt", &sb)
+	if err != nil {
+		t.Fatalf("Complete returned error: %v", err)
+	}
+
+	if usage.InputTokens != 5 {
+		t.Errorf("InputTokens = %d, want 5", usage.InputTokens)
+	}
+
+	if usage.OutputTokens != 2 {
+		t.Errorf("OutputTokens = %d, want 2", usage.OutputTokens)
+	}
+}
+
 func TestCompleteReturnsErrorOnNon200(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
@@ -58,7 +88,7 @@ func TestCompleteReturnsErrorOnNon200(t *testing.T) {
 
 	var sb strings.Builder
 
-	err := openai.New("k", srv.URL, "").Complete(t.Context(), "prompt", &sb)
+	_, err := openai.New("k", srv.URL, "").Complete(t.Context(), "prompt", &sb)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

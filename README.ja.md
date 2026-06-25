@@ -127,13 +127,38 @@ echo "The quick brown fox" | mint -t fr
 cat document.txt | mint -t zh-TW
 ```
 
-`--verbose` / `-v` オプションを使用すると、診断情報（検出言語、プロバイダー、モデル）がstderrに出力されます。
+`--verbose` / `-v`（または `MINT_VERBOSE=true`）を使用すると、診断情報とトークン使用量がstderrに出力されます。
 
 ```bash
 mint -t ja -v "Good morning"
-# [mint] provider=google-genai model=gemini-3.1-flash-lite detected=en target=ja
+# [mint] provider: google-genai
+# [mint] model: gemini-3.1-flash-lite
+# [mint] single target — skipping language detection
+# [mint] target language: ja
 # おはようございます
+# [mint] tokens: 63 in / 4 out
 ```
+
+**典型的なトークン使用量**（`gemini-3.1-flash-lite` での実測値）：
+
+| モード | 入力 | API呼び出し回数 | 入力トークン | 出力トークン |
+|--------|------|---------------|------------|------------|
+| 単一ターゲット（`-t` または単一 `MINT_TARGET_LANG`） | 短い単語・文章 | 1 | ~57–65 | ~1–5 |
+| 単一ターゲット | 長い文章（`testdata/sample.txt`） | 1 | ~416–420 | ~360–476 |
+| 多言語ローテーション（カンマ区切り `MINT_TARGET_LANG`） | 短い文章 | 2 | ~144–148 | ~6–8 |
+| 言語中立パススルー（数字・記号） | 任意 | 0 | 0 | 0 |
+| 明示的ソース `-s` + ローテーション | 短い文章 | 1 | ~53 | ~1–2 |
+
+> トークン数は入力の長さによって変わります。また出力トークンは言語によっても異なり、日本語や中国語は英語より多くなる傾向があります。
+
+**100万トークンで何回翻訳できる？**（入力＋出力の合計、上記の実測使用量から算出）：
+
+| 入力 | 1回あたりのトークン数 | 100万トークンでの翻訳回数 |
+|------|---------------------|------------------------|
+| 短い単語・文章 | 約65 | 約15,000回 |
+| 300語の文章 | 約840 | 約1,200件 |
+
+> 回数は入力と出力のトークンを合計したものです。各プロバイダーは入力と出力を別々に課金し、多くが無料枠を提供しています——実際の料金は各プロバイダーの価格ページをご確認ください。GoogleのGeminiは[Google AI Studio](https://aistudio.google.com/apikey)の無料枠をクレジットカードなしで利用できます。
 
 `--source` / `-s` で**ソース言語を強制指定**すると、ターゲット言語としても有効な入力（言語をまたぐ同形異義語、ローマ字表記のテキスト）を翻訳できます：
 
@@ -188,10 +213,22 @@ mint "こんにちは"   # ja → en: Hello
 | `MINT_BASE_URL` | カスタムAPIベースURL（ドメインのみ指定、パスは各プロバイダーが自動付与）。`openai`と組み合わせることで、Ollama（`http://localhost:11434`）、LM Studio（`http://localhost:1234`）、またはOpenAI互換エンドポイントを指定可能 | プロバイダーのデフォルト |
 | `MINT_MODEL_NAME` | 使用するモデル名 | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` |
 | `MINT_TARGET_LANG` | ターゲット言語（例: `en` または `en,zh-TW,ja`） | システムのロケール設定 |
+| `MINT_VERBOSE` | `true`に設定すると詳細な診断出力が有効になります（`--verbose`相当） | `false` |
 
 ---
 
-## 🗺 ロードマップ
+## 🚩 CLIフラグ
+
+| フラグ | 省略形 | 説明 |
+|--------|--------|------|
+| `--target <lang>` | `-t` | ターゲット言語（BCP-47タグ、例: `ja`、`zh-TW`、`fr`）。`MINT_TARGET_LANG`を上書きします。 |
+| `--source <lang>` | `-s` | ソース言語（BCP-47タグ）。自動検出をスキップし、この言語からの翻訳を強制します。 |
+| `--verbose` | `-v` | 診断情報とトークン使用量をstderrに出力します。`MINT_VERBOSE=true`でも有効にできます。 |
+| `--version` | | バージョンを表示して終了します。 |
+
+---
+
+## 📅 ロードマップ
 
 - [x] 複数のLLMプロバイダー対応（Google Gemini、OpenAI、Anthropic、ローカルのOllama / LM Studio）
 - [x] `MINT_TARGET_LANG` による言語自動検出と多言語ローテーション

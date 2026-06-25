@@ -148,6 +148,7 @@ bin/mint                             # compiled binary (gitignored)
 | `MINT_BASE_URL` | Custom API base URL (domain only; each provider appends its own path); use with `openai` to target local inference servers — Ollama (`http://localhost:11434`) or LM Studio (`http://localhost:1234`); optional for cloud providers to point to a proxy | Conditional* | Provider default |
 | `MINT_MODEL_NAME` | LLM model name to use | Required when `MINT_BASE_URL` is set; optional otherwise | Provider default** |
 | `MINT_TARGET_LANG` | Target language(s) - single or comma-separated (e.g. `en`, `en,zh-TW,ja`) | Optional | System locale or `en` |
+| `MINT_VERBOSE` | Set to `true` to enable verbose diagnostic output to stderr (equivalent to `--verbose`) | Optional | `false` |
 
 **Conditional:* `MINT_API_KEY` required when using the default endpoint; optional when `MINT_BASE_URL` is set (proxy handles auth).*
 **Default models:* `google-genai`: `gemini-3.1-flash-lite`, `openai`: `gpt-4o-mini`, `anthropic`: `claude-haiku-4-5`.*

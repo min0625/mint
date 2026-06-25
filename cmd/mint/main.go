@@ -83,7 +83,7 @@ func newRootCmd() *cobra.Command {
 		SilenceErrors: true, // main() prints errors so Ctrl+C can exit quietly
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logv := func(format string, a ...any) {
-				if verboseFlag {
+				if v.GetBool("verbose") {
 					fmt.Fprintf(os.Stderr, "[mint] "+format+"\n", a...)
 				}
 			}
@@ -132,6 +132,8 @@ func newRootCmd() *cobra.Command {
 				logv("source language: %s", sourceLang)
 			}
 
+			var totalUsage llm.Usage
+
 			// Determine the target language.
 			//
 			// Single target (the common case — always so with --target): skip the
@@ -171,7 +173,7 @@ func newRootCmd() *cobra.Command {
 
 				actualTargetLang = determineActualTargetLang(sourceLang, targetLangs)
 			default:
-				inputLang, err := detectLanguage(ctx, t, text)
+				inputLang, detectUsage, err := detectLanguage(ctx, t, text)
 				if err != nil {
 					return fmt.Errorf("language detection failed: %w", err)
 				}
@@ -182,10 +184,14 @@ func newRootCmd() *cobra.Command {
 				// no rewrite call needed.
 				if inputLang == "" {
 					logv("language-neutral content — outputting unchanged")
+					logv("tokens: %d in / %d out", detectUsage.InputTokens, detectUsage.OutputTokens)
 					fmt.Println(text)
 
 					return nil
 				}
+
+				totalUsage.InputTokens += detectUsage.InputTokens
+				totalUsage.OutputTokens += detectUsage.OutputTokens
 
 				actualTargetLang = determineActualTargetLang(inputLang, targetLangs)
 			}
@@ -198,9 +204,14 @@ func newRootCmd() *cobra.Command {
 			// (e.g. Simplified for zh-TW).
 			prompt := buildRewritePrompt(sourceLang, actualTargetLang, text)
 
-			if err := t.Complete(ctx, prompt, os.Stdout); err != nil {
+			translateUsage, err := t.Complete(ctx, prompt, os.Stdout)
+			if err != nil {
 				return fmt.Errorf("translation failed: %w", err)
 			}
+
+			totalUsage.InputTokens += translateUsage.InputTokens
+			totalUsage.OutputTokens += translateUsage.OutputTokens
+			logv("tokens: %d in / %d out", totalUsage.InputTokens, totalUsage.OutputTokens)
 
 			return nil
 		},
@@ -209,7 +220,9 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&targetLangFlag, "target", "t", "", "target language (BCP-47 tag, e.g. ja, zh-TW, fr)")
 	cmd.Flags().
 		StringVarP(&sourceLangFlag, "source", "s", "", "source language (BCP-47 tag); skips auto-detection and forces translation from this language")
-	cmd.Flags().BoolVarP(&verboseFlag, "verbose", "v", false, "print diagnostic info to stderr")
+	cmd.Flags().
+		BoolVarP(&verboseFlag, "verbose", "v", false, "print diagnostic info to stderr (also enabled by MINT_VERBOSE=true)")
+	_ = v.BindPFlag("verbose", cmd.Flags().Lookup("verbose"))
 
 	return cmd
 }
@@ -368,23 +381,25 @@ func isLangNeutral(text string) bool {
 
 // detectLanguage detects the language of the input text.
 // Returns empty string if the input is language-neutral (e.g., numbers, symbols).
-func detectLanguage(ctx context.Context, t llm.Completer, text string) (string, error) {
+func detectLanguage(ctx context.Context, t llm.Completer, text string) (string, llm.Usage, error) {
 	prompt := "Detect the dominant language of the text inside <text> tags.\n" +
 		"Reply with ONLY the BCP-47 language tag (e.g. en, zh-TW, ja) — no quotes, no punctuation, no explanation.\n" +
 		"If the text contains only numbers, symbols, or other language-neutral content, reply with: neutral\n\n" +
 		"<text>\n" + text + "\n</text>"
 
 	var buf bytes.Buffer
-	if err := t.Complete(ctx, prompt, &buf); err != nil {
-		return "", err
+
+	usage, err := t.Complete(ctx, prompt, &buf)
+	if err != nil {
+		return "", llm.Usage{}, err
 	}
 
 	lang := normalizeDetectedLang(buf.String())
 	if lang == neutralLang {
-		return "", nil
+		return "", usage, nil
 	}
 
-	return lang, nil
+	return lang, usage, nil
 }
 
 // normalizeDetectedLang coerces the model's free-form reply into a bare

@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/min0625/mint/internal/llm"
 )
 
 // mockCompleter is a test double for llm.Completer.
@@ -19,14 +21,14 @@ type mockCompleter struct {
 	err      error
 }
 
-func (m *mockCompleter) Complete(_ context.Context, _ string, w io.Writer) error {
+func (m *mockCompleter) Complete(_ context.Context, _ string, w io.Writer) (llm.Usage, error) {
 	if m.err != nil {
-		return m.err
+		return llm.Usage{}, m.err
 	}
 
 	_, _ = io.WriteString(w, m.response)
 
-	return nil
+	return llm.Usage{}, nil
 }
 
 const (
@@ -212,7 +214,7 @@ func TestDetectLanguage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := &mockCompleter{response: tt.response, err: tt.err}
 
-			lang, err := detectLanguage(context.Background(), mock, "test text")
+			lang, _, err := detectLanguage(context.Background(), mock, "test text")
 			if (err != nil) != tt.wantErr {
 				t.Errorf("error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -450,6 +452,41 @@ func TestNewRootCmdMultiTargetNeutral(t *testing.T) {
 	out := flush()
 	if !strings.Contains(out, "12345") {
 		t.Errorf("expected '12345' in output, got: %q", out)
+	}
+}
+
+// TestNewRootCmdMultiTargetDetectionNeutral covers the path where detection
+// runs in rotation mode and the model returns "neutral" for input that contains
+// letters (so the pre-flight isLangNeutral heuristic does not short-circuit).
+func TestNewRootCmdMultiTargetDetectionNeutral(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"neutral\"}}]}\n\ndata: [DONE]\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+	t.Setenv("MINT_TARGET_LANG", "en,zh-TW")
+
+	flush := captureStdout(t)
+
+	cmd := newRootCmd()
+	// "42abc" has letters so isLangNeutral returns false, but the model
+	// classifies it as neutral — the output should be the original text.
+	cmd.SetArgs([]string{"--verbose", "42abc"})
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		_ = flush()
+
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := flush()
+	if !strings.Contains(out, "42abc") {
+		t.Errorf("expected '42abc' in output, got: %q", out)
 	}
 }
 
