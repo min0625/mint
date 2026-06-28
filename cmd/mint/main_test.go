@@ -102,6 +102,8 @@ func TestResolveTargetLangs(t *testing.T) {
 		{"config single lang", "", "fr", []string{"fr"}},
 		{"config multiple langs", "", "en,zh-TW,ja", []string{"en", langZhTw, "ja"}},
 		{"config langs trimmed and lowercased", "", " EN , ZH-TW ", []string{"en", langZhTw}},
+		{"config trailing comma ignored", "", "en,", []string{"en"}},
+		{"config double comma ignored", "", "en,,zh-TW", []string{"en", langZhTw}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -241,6 +243,7 @@ func TestGetSystemLanguage(t *testing.T) {
 		{"C.UTF-8 locale skipped, uses LC_ALL", "C.UTF-8", "fr_FR.UTF-8", "fr"},
 		{"POSIX locale skipped, uses LC_ALL", "POSIX", "de_DE.UTF-8", "de"},
 		{"LC_ALL used when LANG empty", "", "ja_JP.UTF-8", "ja"},
+		{"LC_ALL overrides LANG when both set", "en_US.UTF-8", "ja_JP.UTF-8", "ja"},
 		{"both empty returns empty string", "", "", ""},
 	}
 	for _, tt := range tests {

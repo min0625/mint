@@ -30,6 +30,7 @@ cat document.txt | mint -t fr     # translate a whole file
 - **Smart correction** — Same-language input? Auto-corrects grammar & spelling instead of translating
 - **Streaming** — Output streams in real-time, no waiting for long translations
 - **Composable** — Pipe-friendly stdin/stdout; pairs seamlessly with `grep`, `sed`, `xargs`, and friends
+- **Secure** — Untrusted input is isolated from model instructions via system/user message separation and per-request random-nonce delimiters; translating adversarial content cannot hijack the LLM's behavior
 
 ---
 
