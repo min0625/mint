@@ -91,11 +91,11 @@ bin/mint                             # compiled binary (gitignored)
 - CLI framework: `github.com/spf13/cobra` — root command with `--target` / `-t` (target language), `--source` / `-s` (source language), and `--verbose` / `-v` (diagnostic output to stderr) flags.
 - Configuration: `github.com/spf13/viper` — reads env vars with `MINT_` prefix; no config files.
 - LLM backends called directly via raw `net/http` (no heavy SDKs); keeps binary minimal.
-- `Completer` interface in `internal/llm/` allows provider backends without breaking changes.
+- `Completer` interface in `internal/llm/` allows provider backends without breaking changes. `Complete(ctx, system, user, w)` keeps task instructions (`system`) separate from untrusted user input (`user`) so translated content cannot contaminate the instruction context. Each request also embeds a random nonce as a delimiter in the system prompt; the same nonce wraps the user text, preventing injected content from escaping its boundary even if it mimics delimiter syntax. Weaker models that echo the nonce lines back are filtered before the output reaches the caller.
 - Language detection: when no source language is given, the input language is inferred — by the LLM in rotation mode, or implicitly by the rewrite prompt for a single target.
 - Source language: optional `--source` / `-s` flag (BCP-47 tag); flag-only, no env var (a source is per-input, not a persistent preference). When set it skips detection and anchors the rewrite prompt to translate *from* that language, so cross-language homographs (e.g. French `chat` → English `cat`) and romanized input (e.g. `konnichiwa` → `hello`) are translated rather than treated as already-target text. Empty (the default) preserves the original auto-detect behavior. Pure language-neutral input still passes through unchanged regardless.
 - Language-neutral pass-through: if detected language is `neutral`, input is printed unchanged with no translation call.
 - Same-language behavior: if detected input language matches the target language, the tool performs grammar and spelling correction instead of translation.
-- Target language priority: `--target` flag → `MINT_TARGET_LANG` env var → system locale (`$LANG` / `$LC_ALL`) → `en`.
+- Target language priority: `--target` flag → `MINT_TARGET_LANG` env var → system locale (`$LC_ALL` / `$LANG`) → `en`.
 - Language rotation: `MINT_TARGET_LANG` accepts a comma-separated list (e.g., `en,zh-TW,ja`); when the detected input language matches a tag in the list, the tool translates to the next tag (wraps around). BCP-47 variants sharing the same primary subtag (e.g., `zh-HK` and `zh-TW`) are treated as equivalent.
 - Input from positional arg or stdin (auto-detected).

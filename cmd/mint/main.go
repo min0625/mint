@@ -261,6 +261,9 @@ func resolveInput(args []string) (string, error) {
 	return text, nil
 }
 
+// normLang lowercases and trims whitespace from a language tag.
+func normLang(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
+
 // resolveTargetLangs resolves target languages based on priority:
 // 1. Flag Lang Code (--target / -t) - single language only
 // 2. Config Lang Code (MINT_TARGET_LANG) - single or comma-separated languages
@@ -270,7 +273,7 @@ func resolveTargetLangs(flagLang, configLang string) []string {
 	// Priority 1: Flag Lang Code (single language only)
 	if flagLang != "" {
 		// Remove any whitespace and normalize
-		flagLang = strings.ToLower(strings.TrimSpace(flagLang))
+		flagLang = normLang(flagLang)
 		// Flag should not contain commas - use only the first part if present
 		if first, _, found := strings.Cut(flagLang, ","); found {
 			flagLang = first
@@ -280,12 +283,16 @@ func resolveTargetLangs(flagLang, configLang string) []string {
 	}
 
 	// Priority 2: Config Lang Code (supports multiple comma-separated languages)
-	if configLang != "" {
-		langs := strings.Split(configLang, ",")
-		for i, lang := range langs {
-			langs[i] = strings.ToLower(strings.TrimSpace(lang))
-		}
+	raw := strings.Split(configLang, ",")
 
+	langs := make([]string, 0, len(raw))
+	for _, lang := range raw {
+		if l := normLang(lang); l != "" {
+			langs = append(langs, l)
+		}
+	}
+
+	if len(langs) > 0 {
 		return langs
 	}
 
@@ -307,7 +314,7 @@ func resolveSourceLang(flagLang string) string {
 		return ""
 	}
 
-	flagLang = strings.ToLower(strings.TrimSpace(flagLang))
+	flagLang = normLang(flagLang)
 
 	// A source is a single language; ignore anything after the first comma.
 	if first, _, found := strings.Cut(flagLang, ","); found {
@@ -456,7 +463,7 @@ func buildDetectPrompt(text string) (system, user string) {
 
 // getSystemLanguage gets the system language from the OS locale.
 func getSystemLanguage() string {
-	for _, env := range []string{"LANG", "LC_ALL"} {
+	for _, env := range []string{"LC_ALL", "LANG"} {
 		if lang := os.Getenv(env); lang != "" {
 			// Strip encoding suffix before cutting on "_":
 			// "C.UTF-8" → "C"; "en_US.UTF-8" → "en_US" (no change here)
