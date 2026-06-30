@@ -13,12 +13,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/min0625/mint/internal/httpx"
 	"github.com/min0625/mint/internal/llm"
 )
 
 const (
 	defaultBaseURL   = "https://generativelanguage.googleapis.com"
 	defaultModelName = "gemini-3.1-flash-lite"
+	temperature      = 0.3
 	// maxScanLineBytes raises bufio.Scanner's default 64KB line limit so a
 	// large SSE data line or error body does not abort the stream early.
 	maxScanLineBytes = 1 << 20
@@ -46,7 +48,7 @@ func New(apiKey, baseURL, modelName string) *Client {
 		apiKey:     apiKey,
 		baseURL:    baseURL,
 		modelName:  modelName,
-		httpClient: &http.Client{},
+		httpClient: httpx.New(),
 	}
 }
 
@@ -92,7 +94,7 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 	body := requestBody{
 		SystemInstruction: systemInstruction{Parts: []part{{Text: system}}},
 		Contents:          []content{{Parts: []part{{Text: user}}}},
-		GenerationConfig:  generationConfig{Temperature: 0.3},
+		GenerationConfig:  generationConfig{Temperature: temperature},
 	}
 
 	jsonBody, err := json.Marshal(body)
@@ -130,6 +132,8 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 
 	var usage llm.Usage
 
+	out := llm.NewTrailingNewlineWriter(w)
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		if !strings.HasPrefix(line, "data: ") {
@@ -150,13 +154,13 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 		}
 
 		if len(result.Candidates) > 0 && len(result.Candidates[0].Content.Parts) > 0 {
-			if _, err := fmt.Fprint(w, result.Candidates[0].Content.Parts[0].Text); err != nil {
+			if _, err := fmt.Fprint(out, result.Candidates[0].Content.Parts[0].Text); err != nil {
 				return llm.Usage{}, err
 			}
 		}
 	}
 
-	if _, err := fmt.Fprintln(w); err != nil {
+	if err := out.Done(); err != nil {
 		return llm.Usage{}, err
 	}
 

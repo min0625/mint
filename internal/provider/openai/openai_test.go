@@ -137,3 +137,55 @@ func TestCompleteRoleSeparation(t *testing.T) {
 
 	_, _ = openai.New("k", srv.URL, "").Complete(t.Context(), "my system instruction", "my user text", &sb)
 }
+
+// A custom base URL targets a local/proxy server (Ollama, LM Studio) that may
+// reject unknown fields, so the OpenAI-only stream_options must be omitted.
+func TestCompleteOmitsStreamOptionsForCustomBaseURL(t *testing.T) {
+	var gotBody []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: [DONE]\n"))
+	}))
+	defer srv.Close()
+
+	var sb strings.Builder
+	if _, err := openai.New("k", srv.URL, "").Complete(t.Context(), "sys", "usr", &sb); err != nil {
+		t.Fatalf("Complete returned error: %v", err)
+	}
+
+	var req map[string]any
+	if err := json.Unmarshal(gotBody, &req); err != nil {
+		t.Fatalf("unmarshal request body: %v", err)
+	}
+
+	if _, ok := req["stream_options"]; ok {
+		t.Errorf("stream_options must be omitted for a custom base URL, body: %s", gotBody)
+	}
+}
+
+// The model may stream content that already ends in a newline; the client must
+// not append a second one, so output ends with exactly one trailing newline.
+func TestCompleteDoesNotDoubleTrailingNewline(t *testing.T) {
+	const sse = `data: {"choices":[{"delta":{"content":"Hello\n"}}]}
+
+data: [DONE]
+`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(sse))
+	}))
+	defer srv.Close()
+
+	var sb strings.Builder
+	if _, err := openai.New("k", srv.URL, "").Complete(t.Context(), "sys", "usr", &sb); err != nil {
+		t.Fatalf("Complete returned error: %v", err)
+	}
+
+	if got, want := sb.String(), "Hello\n"; got != want {
+		t.Errorf("output = %q, want %q", got, want)
+	}
+}

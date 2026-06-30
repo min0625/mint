@@ -24,7 +24,7 @@ test:
 
 .PHONY: cover
 cover:
-	go test -race -covermode=atomic -coverprofile=coverage.out ./...
+	go test -race -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out
 
 .PHONY: cover-html

@@ -229,6 +229,33 @@ func TestDetectLanguage(t *testing.T) {
 	}
 }
 
+// nonceEchoCompleter mimics a weaker model that copies the nonce delimiter
+// lines from the prompt straight into its reply. The nonce is the first line
+// of the user message (the rewrite/detect prompt wraps text as nonce\n…\nnonce).
+type nonceEchoCompleter struct {
+	tag string
+}
+
+func (c *nonceEchoCompleter) Complete(_ context.Context, _, user string, w io.Writer) (llm.Usage, error) {
+	nonce, _, _ := strings.Cut(user, "\n")
+	_, _ = io.WriteString(w, nonce+"\n"+c.tag+"\n"+nonce)
+
+	return llm.Usage{}, nil
+}
+
+// A model that echoes the detection nonce back must still yield a clean tag:
+// the nonce lines are filtered before normalizeDetectedLang sees the reply.
+func TestDetectLanguageFiltersEchoedNonce(t *testing.T) {
+	lang, _, err := detectLanguage(context.Background(), &nonceEchoCompleter{tag: "ja"}, "test text")
+	if err != nil {
+		t.Fatalf("detectLanguage returned error: %v", err)
+	}
+
+	if lang != "ja" {
+		t.Errorf("lang = %q, want %q", lang, "ja")
+	}
+}
+
 func TestGetSystemLanguage(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -692,7 +719,19 @@ func TestBuildRewritePrompt(t *testing.T) {
 }
 
 func TestBuildDetectPrompt(t *testing.T) {
-	system, user := buildDetectPrompt("Hello world")
+	system, user, nonce := buildDetectPrompt("Hello world")
+
+	if !strings.HasPrefix(nonce, "mint-") {
+		t.Errorf("expected mint- nonce prefix, got: %q", nonce)
+	}
+
+	if !strings.Contains(system, nonce) {
+		t.Errorf("expected nonce in system, got: %q", system)
+	}
+
+	if !strings.Contains(user, nonce) {
+		t.Errorf("expected nonce in user, got: %q", user)
+	}
 
 	if !strings.Contains(system, "Detect the dominant language") {
 		t.Errorf("expected detect instruction in system, got: %q", system)
