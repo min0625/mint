@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/min0625/mint/internal/httpx"
 	"github.com/min0625/mint/internal/llm"
 )
 
@@ -20,6 +21,7 @@ const (
 	defaultBaseURL   = "https://api.openai.com"
 	defaultAPIPath   = "/v1/chat/completions"
 	defaultModelName = "gpt-4o-mini"
+	temperature      = 0.3
 	// maxScanLineBytes raises bufio.Scanner's default 64KB line limit so a
 	// large SSE data line or error body does not abort the stream early.
 	maxScanLineBytes = 1 << 20
@@ -27,10 +29,11 @@ const (
 
 // Client is an OpenAI API client.
 type Client struct {
-	apiKey     string
-	baseURL    string
-	modelName  string
-	httpClient *http.Client
+	apiKey          string
+	baseURL         string
+	modelName       string
+	defaultEndpoint bool
+	httpClient      *http.Client
 }
 
 // New creates a new OpenAI client.
@@ -39,24 +42,29 @@ func New(apiKey, baseURL, modelName string) *Client {
 		modelName = defaultModelName
 	}
 
+	// A custom base URL targets a local or proxy server (Ollama, LM Studio,
+	// etc.); track that so we only send OpenAI-only request fields to the
+	// official endpoint.
+	defaultEndpoint := baseURL == ""
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
 
 	return &Client{
-		apiKey:     apiKey,
-		baseURL:    baseURL,
-		modelName:  modelName,
-		httpClient: &http.Client{},
+		apiKey:          apiKey,
+		baseURL:         baseURL,
+		modelName:       modelName,
+		defaultEndpoint: defaultEndpoint,
+		httpClient:      httpx.New(),
 	}
 }
 
 type requestBody struct {
-	Model         string        `json:"model"`
-	Messages      []message     `json:"messages"`
-	Temperature   float64       `json:"temperature"`
-	Stream        bool          `json:"stream"`
-	StreamOptions streamOptions `json:"stream_options"`
+	Model         string         `json:"model"`
+	Messages      []message      `json:"messages"`
+	Temperature   float64        `json:"temperature"`
+	Stream        bool           `json:"stream"`
+	StreamOptions *streamOptions `json:"stream_options,omitempty"`
 }
 
 type message struct {
@@ -95,9 +103,15 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 			{Role: "system", Content: system},
 			{Role: "user", Content: user},
 		},
-		Temperature:   0.3,
-		Stream:        true,
-		StreamOptions: streamOptions{IncludeUsage: true},
+		Temperature: temperature,
+		Stream:      true,
+	}
+
+	// stream_options.include_usage is an OpenAI extension. Only request it on
+	// the official endpoint; local/proxy servers reached via a custom base URL
+	// may reject unknown fields, so omit it there.
+	if c.defaultEndpoint {
+		body.StreamOptions = &streamOptions{IncludeUsage: true}
 	}
 
 	jsonBody, err := json.Marshal(body)
@@ -129,6 +143,8 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 
 	var usage llm.Usage
 
+	out := llm.NewTrailingNewlineWriter(w)
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		if !strings.HasPrefix(line, "data: ") {
@@ -151,13 +167,13 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 		}
 
 		if len(sr.Choices) > 0 {
-			if _, err := fmt.Fprint(w, sr.Choices[0].Delta.Content); err != nil {
+			if _, err := fmt.Fprint(out, sr.Choices[0].Delta.Content); err != nil {
 				return llm.Usage{}, err
 			}
 		}
 	}
 
-	if _, err := fmt.Fprintln(w); err != nil {
+	if err := out.Done(); err != nil {
 		return llm.Usage{}, err
 	}
 
