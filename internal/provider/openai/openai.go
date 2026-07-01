@@ -29,11 +29,10 @@ const (
 
 // Client is an OpenAI API client.
 type Client struct {
-	apiKey          string
-	baseURL         string
-	modelName       string
-	defaultEndpoint bool
-	httpClient      *http.Client
+	apiKey     string
+	baseURL    string
+	modelName  string
+	httpClient *http.Client
 }
 
 // New creates a new OpenAI client.
@@ -42,20 +41,15 @@ func New(apiKey, baseURL, modelName string) *Client {
 		modelName = defaultModelName
 	}
 
-	// A custom base URL targets a local or proxy server (Ollama, LM Studio,
-	// etc.); track that so we only send OpenAI-only request fields to the
-	// official endpoint.
-	defaultEndpoint := baseURL == ""
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
 
 	return &Client{
-		apiKey:          apiKey,
-		baseURL:         baseURL,
-		modelName:       modelName,
-		defaultEndpoint: defaultEndpoint,
-		httpClient:      httpx.New(),
+		apiKey:     apiKey,
+		baseURL:    baseURL,
+		modelName:  modelName,
+		httpClient: httpx.New(),
 	}
 }
 
@@ -96,6 +90,13 @@ type streamResponse struct {
 
 // Complete calls the OpenAI API with streaming and writes tokens to w as they arrive.
 // system is sent as a system-role message followed by user as a user-role message.
+//
+// stream_options.include_usage is always requested so token counts are
+// available in verbose mode. It is an OpenAI extension, but every endpoint we
+// document (OpenAI, Ollama, LM Studio) either supports it or ignores unknown
+// fields. A strict OpenAI-compatible server that rejects it would surface a
+// plain API error; graceful degradation can be added if such a case is ever
+// reported.
 func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer) (llm.Usage, error) {
 	body := requestBody{
 		Model: c.modelName,
@@ -103,15 +104,9 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 			{Role: "system", Content: system},
 			{Role: "user", Content: user},
 		},
-		Temperature: temperature,
-		Stream:      true,
-	}
-
-	// stream_options.include_usage is an OpenAI extension. Only request it on
-	// the official endpoint; local/proxy servers reached via a custom base URL
-	// may reject unknown fields, so omit it there.
-	if c.defaultEndpoint {
-		body.StreamOptions = &streamOptions{IncludeUsage: true}
+		Temperature:   temperature,
+		Stream:        true,
+		StreamOptions: &streamOptions{IncludeUsage: true},
 	}
 
 	jsonBody, err := json.Marshal(body)
@@ -131,6 +126,7 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 	if err != nil {
 		return llm.Usage{}, fmt.Errorf("call API: %w", err)
 	}
+
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {

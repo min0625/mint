@@ -111,12 +111,12 @@ mint "這係一個蘋果"            # 這是一個蘋果
 mint "这是一个苹果"            # 這是一個蘋果
 ```
 
-`-v` shows `single target — skipping language detection` and `target language: zh-tw` — the
+`-v` shows `single target — skipping language detection` and `target language: zh-TW` — the
 rewrite prompt handles standardization without needing to detect the input language first.
 
 > **Rotation note:** in a multi-language list (e.g. `zh-TW,en`), zh-HK input occupies
 > the zh-TW slot and rotates to `en`, not to `zh-TW`. In multi-target mode `-v` confirms:
-> `detected input language: "zh-hk"` → `target language: en`. See section 9 below.
+> `detected input language: "zh-HK"` → `target language: en`. See section 9 below.
 
 ## 7. Language-neutral pass-through
 
@@ -160,7 +160,7 @@ mint "這是一顆蘋果。"        # This is an apple.  (zh-TW matched at index
 
 > **zh-HK edge case:** zh-HK input matches the zh-TW slot (same primary subtag `zh`) and
 > therefore rotates to `en`. Use `-v` to confirm:
-> `detected input language: "zh-hk"` → `target language: en`.
+> `detected input language: "zh-HK"` → `target language: en`.
 
 ## 10. Language rotation — three languages (wrap-around)
 
@@ -230,6 +230,36 @@ MINT_PROVIDER=invalid mint -t zh-TW "apple"
 # Missing API key (no MINT_BASE_URL set)
 unset MINT_API_KEY
 mint -t zh-TW "apple"      # Error: MINT_API_KEY is required for provider: <provider>
+
+# MINT_BASE_URL set: API key is optional (proxy handles auth)
+export MINT_PROVIDER=openai
+export MINT_BASE_URL=http://localhost:11434
+export MINT_MODEL_NAME=translategemma:4b
+unset MINT_API_KEY
+mint -t zh-TW "hello"      # 你好  (no API key required)
 ```
 
 Ctrl+C / SIGTERM cancels any in-flight request and exits with code 130.
+This applies when the signal arrives while an HTTP request is in progress;
+a signal sent before the request starts is handled by the OS default (exit 143 for SIGTERM).
+
+## 14. `MINT_VERBOSE` environment variable
+
+`MINT_VERBOSE=true` is equivalent to the `-v` / `--verbose` flag.
+
+```sh
+MINT_VERBOSE=true mint -t zh-TW "apple"   # 蘋果  (diagnostics on stderr)
+```
+
+Verbose stderr output (single-target mode):
+```
+[mint] provider: google-genai
+[mint] model: gemini-3.1-flash-lite
+[mint] single target — skipping language detection
+[mint] target language: zh-TW
+[mint] tokens: 125 in / 8 out
+```
+
+The `model:` line appears only when `MINT_MODEL_NAME` is set (likewise `base_url:` for
+`MINT_BASE_URL`); with provider defaults both are omitted, as in the abbreviated example at
+the top of this file.

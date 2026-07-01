@@ -14,6 +14,8 @@ navigation and code-level detail that AGENTS.md does not spell out.
 ```
 cmd/mint/main.go                # entry; cobra root via newRootCmd() factory; viper wiring; target-lang resolution
 internal/llm/llm.go             # Completer interface: Complete(ctx, system, user string, w io.Writer) (Usage, error); Usage = token counts
+internal/llm/writer.go          # TrailingNewlineWriter: wraps io.Writer, guarantees exactly one trailing '\n'; providers stream tokens through it + call Done()
+internal/httpx/httpx.go         # New() *http.Client — shared tuned transport (proxy-from-env, HTTP/2, conn pool); every provider uses it instead of http.DefaultClient
 internal/provider/config.go     # Config struct; Config.ValidateConfig(); provider-name constants
 internal/provider/provider.go   # NewCompleter(cfg) factory — dispatches on cfg.Provider
 internal/provider/googlegenai/  # Google Gemini HTTP client (implements Completer)
