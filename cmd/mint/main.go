@@ -131,7 +131,7 @@ func newRootCmd() *cobra.Command {
 			// than treated as already-target text.
 			sourceLang := resolveSourceLang(sourceLangFlag)
 			if sourceLang != "" {
-				logv("source language: %s", sourceLang)
+				logv("source language: %s", canonicalLangTag(sourceLang))
 			}
 
 			var totalUsage llm.Usage
@@ -180,7 +180,7 @@ func newRootCmd() *cobra.Command {
 					return fmt.Errorf("language detection failed: %w", err)
 				}
 
-				logv("detected input language: %q", inputLang)
+				logv("detected input language: %q", canonicalLangTag(inputLang))
 
 				// Language-neutral content (numbers, symbols): output unchanged,
 				// no rewrite call needed.
@@ -198,7 +198,7 @@ func newRootCmd() *cobra.Command {
 				actualTargetLang = determineActualTargetLang(inputLang, targetLangs)
 			}
 
-			logv("target language: %s", actualTargetLang)
+			logv("target language: %s", canonicalLangTag(actualTargetLang))
 
 			// Rewrite the input in the target language, correcting grammar and
 			// spelling along the way. Anchoring on the target tag also pins the
@@ -263,6 +263,36 @@ func resolveInput(args []string) (string, error) {
 
 // normLang lowercases and trims whitespace from a language tag.
 func normLang(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
+
+// canonicalLangTag reformats a normalized BCP-47 tag into its conventional
+// subtag casing for display: a lowercase primary language subtag, an uppercase
+// two-letter region subtag (e.g. "zh-tw" → "zh-TW"), and a title-case
+// four-letter script subtag (e.g. "zh-hant" → "zh-Hant"). Tags are lowercased
+// internally for case-insensitive matching (see normLang); this is purely a
+// presentation helper for verbose diagnostics and does not affect matching.
+func canonicalLangTag(tag string) string {
+	if tag == "" {
+		return tag
+	}
+
+	parts := strings.Split(tag, "-")
+	for i, p := range parts {
+		switch {
+		case i == 0:
+			parts[i] = strings.ToLower(p)
+		case len(p) == 2:
+			// Region subtag (e.g. TW, US).
+			parts[i] = strings.ToUpper(p)
+		case len(p) == 4:
+			// Script subtag (e.g. Hant) — title case.
+			parts[i] = strings.ToUpper(p[:1]) + strings.ToLower(p[1:])
+		default:
+			parts[i] = strings.ToLower(p)
+		}
+	}
+
+	return strings.Join(parts, "-")
+}
 
 // resolveTargetLangs resolves target languages based on priority:
 // 1. Flag Lang Code (--target / -t) - single language only

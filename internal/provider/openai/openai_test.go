@@ -138,9 +138,9 @@ func TestCompleteRoleSeparation(t *testing.T) {
 	_, _ = openai.New("k", srv.URL, "").Complete(t.Context(), "my system instruction", "my user text", &sb)
 }
 
-// A custom base URL targets a local/proxy server (Ollama, LM Studio) that may
-// reject unknown fields, so the OpenAI-only stream_options must be omitted.
-func TestCompleteOmitsStreamOptionsForCustomBaseURL(t *testing.T) {
+// stream_options.include_usage is always requested (including for custom base
+// URLs) so that token counts are available in verbose mode.
+func TestCompleteRequestsStreamOptions(t *testing.T) {
 	var gotBody []byte
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -161,8 +161,37 @@ func TestCompleteOmitsStreamOptionsForCustomBaseURL(t *testing.T) {
 		t.Fatalf("unmarshal request body: %v", err)
 	}
 
-	if _, ok := req["stream_options"]; ok {
-		t.Errorf("stream_options must be omitted for a custom base URL, body: %s", gotBody)
+	if _, ok := req["stream_options"]; !ok {
+		t.Errorf("stream_options must be present by default, body: %s", gotBody)
+	}
+}
+
+// A 400 response is surfaced verbatim as an error, in a single request — the
+// client sends the request as-is and does not attempt any recovery.
+func TestCompleteSurfaces400(t *testing.T) {
+	var requests int
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"model not found"}}`))
+	}))
+	defer srv.Close()
+
+	var sb strings.Builder
+
+	_, err := openai.New("k", srv.URL, "").Complete(t.Context(), "sys", "usr", &sb)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "model not found") {
+		t.Errorf("error %q should surface the 400 body", err.Error())
+	}
+
+	if requests != 1 {
+		t.Errorf("expected exactly one request, got %d", requests)
 	}
 }
 

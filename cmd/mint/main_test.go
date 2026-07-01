@@ -32,14 +32,6 @@ func (m *mockCompleter) Complete(_ context.Context, _, _ string, w io.Writer) (l
 	return llm.Usage{}, nil
 }
 
-const (
-	langZhTW   = "zh-TW"
-	langZhTw   = "zh-tw"
-	argTarget  = "--target"
-	inputHello = "Hello"
-	inputhello = "hello"
-)
-
 func TestLangMatches(t *testing.T) {
 	tests := []struct {
 		a, b string
@@ -47,9 +39,9 @@ func TestLangMatches(t *testing.T) {
 	}{
 		{"en", "en", true},
 		{"en", "fr", false},
-		{langZhTW, "zh-HK", true},
-		{langZhTW, "zh", true},
-		{"zh", langZhTW, true},
+		{"zh-TW", "zh-HK", true},
+		{"zh-TW", "zh", true},
+		{"zh", "zh-TW", true},
 		{"en-US", "en-GB", true},
 		{"en", "en-US", true},
 		{"", "", true},
@@ -72,11 +64,11 @@ func TestDetermineActualTargetLang(t *testing.T) {
 		{"empty target list defaults to en", "fr", nil, "en"},
 		{"single target returns it directly", "fr", []string{"en"}, "en"},
 		{"single target same as input (correction mode)", "en", []string{"en"}, "en"},
-		{"input matches first returns second", "en", []string{"en", langZhTW}, langZhTW},
-		{"input matches middle returns next", langZhTW, []string{"en", langZhTW, "ja"}, "ja"},
-		{"input matches last wraps to first", "ja", []string{"en", langZhTW, "ja"}, "en"},
-		{"input not in list returns first", "fr", []string{"en", langZhTW}, "en"},
-		{"match by primary subtag zh-HK → zh-TW slot", "zh-HK", []string{"en", langZhTW, "ja"}, "ja"},
+		{"input matches first returns second", "en", []string{"en", "zh-TW"}, "zh-TW"},
+		{"input matches middle returns next", "zh-TW", []string{"en", "zh-TW", "ja"}, "ja"},
+		{"input matches last wraps to first", "ja", []string{"en", "zh-TW", "ja"}, "en"},
+		{"input not in list returns first", "fr", []string{"en", "zh-TW"}, "en"},
+		{"match by primary subtag zh-HK → zh-TW slot", "zh-HK", []string{"en", "zh-TW", "ja"}, "ja"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -97,13 +89,13 @@ func TestResolveTargetLangs(t *testing.T) {
 	}{
 		{"flag takes priority over config", "ja", "en,zh-TW", []string{"ja"}},
 		{"flag with comma uses first part only", "en,zh-TW", "", []string{"en"}},
-		{"flag normalized to lowercase", "ZH-TW", "", []string{langZhTw}},
+		{"flag normalized to lowercase", "ZH-TW", "", []string{"zh-tw"}},
 		{"flag trimmed of whitespace", "  fr  ", "", []string{"fr"}},
 		{"config single lang", "", "fr", []string{"fr"}},
-		{"config multiple langs", "", "en,zh-TW,ja", []string{"en", langZhTw, "ja"}},
-		{"config langs trimmed and lowercased", "", " EN , ZH-TW ", []string{"en", langZhTw}},
+		{"config multiple langs", "", "en,zh-TW,ja", []string{"en", "zh-tw", "ja"}},
+		{"config langs trimmed and lowercased", "", " EN , ZH-TW ", []string{"en", "zh-tw"}},
 		{"config trailing comma ignored", "", "en,", []string{"en"}},
-		{"config double comma ignored", "", "en,,zh-TW", []string{"en", langZhTw}},
+		{"config double comma ignored", "", "en,,zh-TW", []string{"en", "zh-tw"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -142,7 +134,7 @@ func TestNormalizeDetectedLang(t *testing.T) {
 		want string
 	}{
 		{"plain tag", "en", "en"},
-		{"trims whitespace", "  zh-TW \n", langZhTw},
+		{"trims whitespace", "  zh-TW \n", "zh-tw"},
 		{"lowercases", "JA", "ja"},
 		{"strips quotes", `"fr"`, "fr"},
 		{"strips backticks", "`de`", "de"},
@@ -160,15 +152,40 @@ func TestNormalizeDetectedLang(t *testing.T) {
 	}
 }
 
+func TestCanonicalLangTag(t *testing.T) {
+	tests := []struct {
+		name string
+		tag  string
+		want string
+	}{
+		{"empty passes through", "", ""},
+		{"language only", "en", "en"},
+		{"language only ja", "ja", "ja"},
+		{"region uppercased", "zh-tw", "zh-TW"},
+		{"region uppercased zh-hk", "zh-hk", "zh-HK"},
+		{"region uppercased zh-cn", "zh-cn", "zh-CN"},
+		{"script title-cased", "zh-hant", "zh-Hant"},
+		{"already canonical is idempotent", "zh-TW", "zh-TW"},
+		{"mixed case normalized", "ZH-Tw", "zh-TW"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := canonicalLangTag(tt.tag); got != tt.want {
+				t.Errorf("canonicalLangTag(%q) = %q, want %q", tt.tag, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestResolveInput(t *testing.T) {
 	t.Run("positional arg used directly", func(t *testing.T) {
-		got, err := resolveInput([]string{inputhello})
+		got, err := resolveInput([]string{"hello"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if got != inputhello {
-			t.Errorf("got %q, want %q", got, inputhello)
+		if got != "hello" {
+			t.Errorf("got %q, want %q", got, "hello")
 		}
 	})
 
@@ -362,7 +379,7 @@ func TestNewRootCmdLangNeutral(t *testing.T) {
 	flush := captureStdout(t)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{argTarget, "en", "12345"})
+	cmd.SetArgs([]string{"--target", "en", "12345"})
 
 	if err := cmd.ExecuteContext(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -391,7 +408,7 @@ func TestNewRootCmdTranslation(t *testing.T) {
 	flush := captureStdout(t)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{argTarget, "fr", "--verbose", inputHello})
+	cmd.SetArgs([]string{"--target", "fr", "--verbose", "Hello"})
 
 	if err := cmd.ExecuteContext(context.Background()); err != nil {
 		_ = flush()
@@ -418,7 +435,7 @@ func TestNewRootCmdTranslationError(t *testing.T) {
 	t.Setenv("MINT_MODEL_NAME", "test-model")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{argTarget, "fr", inputHello})
+	cmd.SetArgs([]string{"--target", "fr", "Hello"})
 
 	err := cmd.ExecuteContext(context.Background())
 	if err == nil {
@@ -535,7 +552,7 @@ func TestNewRootCmdDetectLangError(t *testing.T) {
 	t.Setenv("MINT_TARGET_LANG", "en,fr")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{inputHello})
+	cmd.SetArgs([]string{"Hello"})
 
 	err := cmd.ExecuteContext(context.Background())
 	if err == nil {
@@ -552,7 +569,7 @@ func TestNewRootCmdProviderError(t *testing.T) {
 	t.Setenv("MINT_API_KEY", "test")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{inputHello})
+	cmd.SetArgs([]string{"Hello"})
 
 	if err := cmd.ExecuteContext(context.Background()); err == nil {
 		t.Error("expected error for invalid provider, got nil")
@@ -577,7 +594,7 @@ func TestNewRootCmdNoInput(t *testing.T) {
 	defer func() { os.Stdin = old; _ = r.Close() }()
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{argTarget, "en"})
+	cmd.SetArgs([]string{"--target", "en"})
 
 	if err := cmd.ExecuteContext(context.Background()); err == nil {
 		t.Error("expected error for no input, got nil")
@@ -590,7 +607,7 @@ func TestRunSuccess(t *testing.T) {
 
 	old := os.Args
 
-	os.Args = []string{"mint", argTarget, "en", "12345"}
+	os.Args = []string{"mint", "--target", "en", "12345"}
 	defer func() { os.Args = old }()
 
 	flush := captureStdout(t)
@@ -606,7 +623,7 @@ func TestRunError(t *testing.T) {
 
 	old := os.Args
 
-	os.Args = []string{"mint", argTarget, "en", inputhello}
+	os.Args = []string{"mint", "--target", "en", "hello"}
 	defer func() { os.Args = old }()
 
 	// Suppress stderr to keep test output clean.
@@ -642,7 +659,7 @@ func TestResolveSourceLang(t *testing.T) {
 		{"trimmed of whitespace", "  ja  ", "ja"},
 		{"comma uses first part only", "fr,en", "fr"},
 		{"comma with whitespace trimmed", " fr , en ", "fr"},
-		{"bcp-47 variant preserved", "zh-TW", langZhTw},
+		{"bcp-47 variant preserved", "zh-TW", "zh-tw"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -712,7 +729,7 @@ func TestBuildRewritePrompt(t *testing.T) {
 
 	// Distinct tags sharing a primary subtag are a deliberate script
 	// conversion (zh-CN → zh-TW) and must keep the source anchor.
-	scriptSys, _, _ := buildRewritePrompt("zh-cn", langZhTw, "汉字")
+	scriptSys, _, _ := buildRewritePrompt("zh-cn", "zh-tw", "汉字")
 	if !strings.Contains(scriptSys, "written in zh-cn") {
 		t.Errorf("expected source anchor for script conversion, got: %q", scriptSys)
 	}
@@ -952,7 +969,7 @@ func TestNewRootCmdSourceLang(t *testing.T) {
 	flush := captureStdout(t)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"--source", "fr", argTarget, "en", "chat"})
+	cmd.SetArgs([]string{"--source", "fr", "--target", "en", "chat"})
 
 	if err := cmd.ExecuteContext(context.Background()); err != nil {
 		_ = flush()
