@@ -167,6 +167,7 @@ func TestCanonicalLangTag(t *testing.T) {
 		{"script title-cased", "zh-hant", "zh-Hant"},
 		{"already canonical is idempotent", "zh-TW", "zh-TW"},
 		{"mixed case normalized", "ZH-Tw", "zh-TW"},
+		{"non 2/4-length subtag lowercased", "zh-YUE", "zh-yue"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -289,6 +290,8 @@ func TestGetSystemLanguage(t *testing.T) {
 		{"LC_ALL used when LANG empty", "", "ja_JP.UTF-8", "ja"},
 		{"LC_ALL overrides LANG when both set", "en_US.UTF-8", "ja_JP.UTF-8", "ja"},
 		{"both empty returns empty string", "", "", ""},
+		{"LC_ALL is C, falls through to LANG", "de_DE.UTF-8", "C", "de"},
+		{"LC_ALL is POSIX, falls through to LANG", "ko_KR.UTF-8", "POSIX", "ko"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -342,6 +345,27 @@ func TestResolveInputStdinBlank(t *testing.T) {
 
 	if _, err := resolveInput(nil); err == nil {
 		t.Error("expected error for blank stdin input")
+	}
+}
+
+// A read error on stdin (e.g. a closed file descriptor) must surface as an
+// error rather than being swallowed or treated as empty input.
+func TestResolveInputStdinReadError(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_ = r.Close() // reading from a closed file returns an error
+	_ = w.Close()
+
+	old := os.Stdin
+
+	os.Stdin = r
+	defer func() { os.Stdin = old }()
+
+	if _, err := resolveInput(nil); err == nil {
+		t.Error("expected error when stdin read fails")
 	}
 }
 

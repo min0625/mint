@@ -195,6 +195,35 @@ func TestCompleteSurfaces400(t *testing.T) {
 	}
 }
 
+// A malformed data line (e.g. truncated by a flaky proxy) must not abort the
+// whole stream; it is skipped and the well-formed chunks around it still
+// reach the caller.
+func TestCompleteSkipsMalformedDataLine(t *testing.T) {
+	const sse = `data: {"choices":[{"delta":{"content":"Hello"}}]}
+
+data: {not valid json}
+
+data: {"choices":[{"delta":{"content":" world"}}]}
+
+data: [DONE]
+`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(sse))
+	}))
+	defer srv.Close()
+
+	var sb strings.Builder
+	if _, err := openai.New("k", srv.URL, "").Complete(t.Context(), "sys", "usr", &sb); err != nil {
+		t.Fatalf("Complete returned error: %v", err)
+	}
+
+	if got, want := sb.String(), "Hello world\n"; got != want {
+		t.Errorf("output = %q, want %q", got, want)
+	}
+}
+
 // The model may stream content that already ends in a newline; the client must
 // not append a second one, so output ends with exactly one trailing newline.
 func TestCompleteDoesNotDoubleTrailingNewline(t *testing.T) {
