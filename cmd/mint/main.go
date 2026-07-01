@@ -30,6 +30,10 @@ var (
 // language-neutral input (numbers, symbols, etc.).
 const neutralLang = "neutral"
 
+// posixLocale is the POSIX/C locale name, used as a locale env var value
+// that carries no usable language subtag.
+const posixLocale = "POSIX"
+
 func main() {
 	os.Exit(run())
 }
@@ -41,7 +45,15 @@ func run() int {
 	defer stop()
 
 	if err := newRootCmd().ExecuteContext(ctx); err != nil {
-		if errors.Is(err, context.Canceled) {
+		// Compare against context.Cause(ctx), not context.Canceled: net/http
+		// surfaces context.Cause(ctx), which signal.NotifyContext sets to a
+		// private signalError rather than context.Canceled. Checking errors.Is
+		// against the actual cause (instead of just ctx.Err() != nil) also
+		// makes sure an unrelated error isn't misreported as a clean interrupt
+		// merely because a signal happened to arrive around the same time.
+		// (context.Cause(ctx) is nil until ctx is done, and errors.Is(err, nil)
+		// is always false for a non-nil err, so no separate nil check is needed.)
+		if errors.Is(err, context.Cause(ctx)) {
 			// Interrupted by the user — exit quietly with the conventional code.
 			return 130
 		}
@@ -502,7 +514,7 @@ func getSystemLanguage() string {
 			lang, _, _ = strings.Cut(lang, ".")
 			// Extract primary language subtag: "en_US" → "en"; ignore "C" / "POSIX"
 			code, _, _ := strings.Cut(lang, "_")
-			if code == "" || code == "C" || code == "POSIX" {
+			if code == "" || code == "C" || code == posixLocale {
 				continue
 			}
 
