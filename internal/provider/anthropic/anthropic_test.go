@@ -110,6 +110,37 @@ func TestCompleteReturnsErrorOnNon200(t *testing.T) {
 	}
 }
 
+// A malformed data line (e.g. truncated by a flaky proxy) must not abort the
+// whole stream; it is skipped and the well-formed chunks around it still
+// reach the caller.
+func TestCompleteSkipsMalformedDataLine(t *testing.T) {
+	const sse = `event: content_block_delta
+data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}
+
+data: {not valid json}
+
+event: content_block_delta
+data: {"type":"content_block_delta","delta":{"type":"text_delta","text":" world"}}
+
+data: {"type":"message_stop"}
+`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(sse))
+	}))
+	defer srv.Close()
+
+	var sb strings.Builder
+	if _, err := anthropic.New("k", srv.URL, "").Complete(t.Context(), "sys", "usr", &sb); err != nil {
+		t.Fatalf("Complete returned error: %v", err)
+	}
+
+	if got, want := sb.String(), "Hello world\n"; got != want {
+		t.Errorf("output = %q, want %q", got, want)
+	}
+}
+
 func TestCompleteRoleSeparation(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)

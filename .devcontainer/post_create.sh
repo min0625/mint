@@ -16,9 +16,9 @@ mise exec -- go mod download
 mise exec -- go install -v golang.org/x/tools/gopls@latest
 mise exec -- go install -v github.com/go-delve/delve/cmd/dlv@latest
 
-uv tool install pre-commit
+mise exec -- prek install
+
 uv tool install -p 3.13 serena-agent
-pre-commit install --install-hooks
 
 if [[ -f ".devcontainer/post_create.local.sh" ]]; then
     source ".devcontainer/post_create.local.sh"
