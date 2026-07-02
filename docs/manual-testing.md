@@ -231,17 +231,22 @@ MINT_PROVIDER=invalid mint -t zh-TW "apple"
 unset MINT_API_KEY
 mint -t zh-TW "apple"      # Error: MINT_API_KEY is required for provider: <provider>
 
-# MINT_BASE_URL set: API key is optional (proxy handles auth)
+# MINT_BASE_URL set: API key is optional (proxy handles auth), but a model
+# name is required — a custom endpoint has no meaningful default model.
 export MINT_PROVIDER=openai
 export MINT_BASE_URL=http://localhost:11434
 export MINT_MODEL_NAME=translategemma:4b
 unset MINT_API_KEY
 mint -t zh-TW "hello"      # 你好  (no API key required)
+
+unset MINT_MODEL_NAME
+mint -t zh-TW "hello"      # Error: MINT_MODEL_NAME is required when MINT_BASE_URL is set
 ```
 
-Ctrl+C / SIGTERM cancels any in-flight request and exits with code 130.
-This applies when the signal arrives while an HTTP request is in progress;
-a signal sent before the request starts is handled by the OS default (exit 143 for SIGTERM).
+Ctrl+C sends SIGINT and exits with code 130; SIGTERM exits with code 143 — the
+conventional 128+N mapping, applied while an HTTP request is in progress so the two
+signals stay distinguishable. A signal sent before the request starts is handled by
+the OS default (exit 143 for SIGTERM, exit 130 for SIGINT).
 
 ## 14. `MINT_VERBOSE` environment variable
 

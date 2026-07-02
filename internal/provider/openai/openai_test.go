@@ -247,3 +247,71 @@ data: [DONE]
 		t.Errorf("output = %q, want %q", got, want)
 	}
 }
+
+// A mid-stream error object arrives after the HTTP status was already 200, so
+// it is the only failure signal; Complete must return it as an error instead
+// of silently producing empty output.
+func TestCompleteReturnsErrorOnStreamErrorObject(t *testing.T) {
+	const sse = `data: {"error":{"message":"insufficient quota","type":"insufficient_quota"}}
+
+data: [DONE]
+`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(sse))
+	}))
+	defer srv.Close()
+
+	var sb strings.Builder
+
+	_, err := openai.New("k", srv.URL, "").Complete(t.Context(), "sys", "usr", &sb)
+	if err == nil {
+		t.Fatal("expected stream error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "insufficient quota") {
+		t.Errorf("error %q does not carry the stream error message", err.Error())
+	}
+}
+
+// The API reports output truncation only via the final chunk's finish_reason;
+// Complete must surface it as an error instead of returning partial text with
+// a nil error.
+func TestCompleteReturnsErrorOnLengthTruncation(t *testing.T) {
+	const sse = `data: {"choices":[{"delta":{"content":"partial"}}]}
+
+data: {"choices":[{"delta":{},"finish_reason":"length"}]}
+
+data: {"choices":[],"usage":{"prompt_tokens":3,"completion_tokens":8192}}
+
+data: [DONE]
+`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(sse))
+	}))
+	defer srv.Close()
+
+	var sb strings.Builder
+
+	usage, err := openai.New("k", srv.URL, "").Complete(t.Context(), "sys", "usr", &sb)
+	if err == nil {
+		t.Fatal("expected truncation error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "truncated") {
+		t.Errorf("error %q does not mention truncation", err.Error())
+	}
+
+	// The partial text was already streamed to the caller and usage was
+	// collected; both must still be delivered alongside the error.
+	if got, want := sb.String(), "partial\n"; got != want {
+		t.Errorf("output = %q, want %q", got, want)
+	}
+
+	if usage.OutputTokens != 8192 {
+		t.Errorf("OutputTokens = %d, want 8192", usage.OutputTokens)
+	}
+}

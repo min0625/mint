@@ -44,6 +44,8 @@ binaries → `publish-pypi.yml` assembles wheels and uploads to PyPI.
 ```
 cmd/mint/main.go                     # entry point; cobra root command; viper config wiring
 internal/llm/llm.go                  # Completer interface for LLM backends
+internal/llm/writer.go               # TrailingNewlineWriter shared by provider backends
+internal/httpx/httpx.go              # shared tuned *http.Client used by every provider
 internal/provider/
   config.go                          # Config struct; provider validation
   provider.go                        # NewCompleter factory function
@@ -96,6 +98,6 @@ bin/mint                             # compiled binary (gitignored)
 - Source language: optional `--source` / `-s` flag (BCP-47 tag); flag-only, no env var (a source is per-input, not a persistent preference). When set it skips detection and anchors the rewrite prompt to translate *from* that language, so cross-language homographs (e.g. French `chat` → English `cat`) and romanized input (e.g. `konnichiwa` → `hello`) are translated rather than treated as already-target text. Empty (the default) preserves the original auto-detect behavior. Pure language-neutral input still passes through unchanged regardless.
 - Language-neutral pass-through: if detected language is `neutral`, input is printed unchanged with no translation call.
 - Same-language behavior: if detected input language matches the target language, the tool performs grammar and spelling correction instead of translation.
-- Target language priority: `--target` flag → `MINT_TARGET_LANG` env var → system locale (`$LC_ALL` / `$LANG`) → `en`.
+- Target language priority: `--target` flag → `MINT_TARGET_LANG` env var → system locale (`$LC_ALL` / `$LC_MESSAGES` / `$LANG`) → `en`.
 - Language rotation: `MINT_TARGET_LANG` accepts a comma-separated list (e.g., `en,zh-TW,ja`); when the detected input language matches a tag in the list, the tool translates to the next tag (wraps around). BCP-47 variants sharing the same primary subtag (e.g., `zh-HK` and `zh-TW`) are treated as equivalent.
 - Input from positional arg or stdin (auto-detected).
