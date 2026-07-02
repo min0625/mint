@@ -168,3 +168,65 @@ func TestCompleteRoleSeparation(t *testing.T) {
 
 	_, _ = googlegenai.New("k", srv.URL, "").Complete(t.Context(), "my system instruction", "my user text", &sb)
 }
+
+// A mid-stream error object arrives after the HTTP status was already 200, so
+// it is the only failure signal; Complete must return it as an error instead
+// of silently producing empty output.
+func TestCompleteReturnsErrorOnStreamErrorObject(t *testing.T) {
+	const sse = `data: {"error":{"code":429,"message":"quota exceeded","status":"RESOURCE_EXHAUSTED"}}
+`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(sse))
+	}))
+	defer srv.Close()
+
+	var sb strings.Builder
+
+	_, err := googlegenai.New("k", srv.URL, "").Complete(t.Context(), "sys", "usr", &sb)
+	if err == nil {
+		t.Fatal("expected stream error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "quota exceeded") || !strings.Contains(err.Error(), "429") {
+		t.Errorf("error %q does not carry the stream error details", err.Error())
+	}
+}
+
+// The API reports output truncation only via the candidate's finishReason;
+// Complete must surface it as an error instead of returning partial text with
+// a nil error.
+func TestCompleteReturnsErrorOnMaxTokensTruncation(t *testing.T) {
+	const sse = `data: {"candidates":[{"content":{"parts":[{"text":"partial"}]}}]}
+
+data: {"candidates":[{"content":{"parts":[]},"finishReason":"MAX_TOKENS"}],"usageMetadata":{"promptTokenCount":3,"candidatesTokenCount":8192}}
+`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(sse))
+	}))
+	defer srv.Close()
+
+	var sb strings.Builder
+
+	usage, err := googlegenai.New("k", srv.URL, "").Complete(t.Context(), "sys", "usr", &sb)
+	if err == nil {
+		t.Fatal("expected truncation error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "truncated") {
+		t.Errorf("error %q does not mention truncation", err.Error())
+	}
+
+	// The partial text was already streamed to the caller and usage was
+	// collected; both must still be delivered alongside the error.
+	if got, want := sb.String(), "partial\n"; got != want {
+		t.Errorf("output = %q, want %q", got, want)
+	}
+
+	if usage.OutputTokens != 8192 {
+		t.Errorf("OutputTokens = %d, want 8192", usage.OutputTokens)
+	}
+}

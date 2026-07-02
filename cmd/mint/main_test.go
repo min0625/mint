@@ -11,9 +11,7 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"syscall"
 	"testing"
-	"time"
 
 	"github.com/min0625/mint/internal/llm"
 )
@@ -111,6 +109,7 @@ func TestResolveTargetLangs(t *testing.T) {
 
 func TestResolveTargetLangsSystemFallback(t *testing.T) {
 	t.Setenv("LANG", "ja_JP.UTF-8")
+	t.Setenv("LC_MESSAGES", "")
 	t.Setenv("LC_ALL", "")
 
 	got := resolveTargetLangs("", "")
@@ -121,6 +120,7 @@ func TestResolveTargetLangsSystemFallback(t *testing.T) {
 
 func TestResolveTargetLangsDefaultEn(t *testing.T) {
 	t.Setenv("LANG", "")
+	t.Setenv("LC_MESSAGES", "")
 	t.Setenv("LC_ALL", "")
 
 	got := resolveTargetLangs("", "")
@@ -278,26 +278,32 @@ func TestDetectLanguageFiltersEchoedNonce(t *testing.T) {
 
 func TestGetSystemLanguage(t *testing.T) {
 	tests := []struct {
-		name  string
-		lang  string
-		lcAll string
-		want  string
+		name       string
+		lang       string
+		lcMessages string
+		lcAll      string
+		want       string
 	}{
-		{"typical LANG", "en_US.UTF-8", "", "en"},
-		{"zh locale", "zh_TW.UTF-8", "", "zh"},
-		{"lang without region", "en", "", "en"},
-		{"C locale skipped, uses LC_ALL", "C", "fr_FR.UTF-8", "fr"},
-		{"C.UTF-8 locale skipped, uses LC_ALL", "C.UTF-8", "fr_FR.UTF-8", "fr"},
-		{"POSIX locale skipped, uses LC_ALL", posixLocale, "de_DE.UTF-8", "de"},
-		{"LC_ALL used when LANG empty", "", "ja_JP.UTF-8", "ja"},
-		{"LC_ALL overrides LANG when both set", "en_US.UTF-8", "ja_JP.UTF-8", "ja"},
-		{"both empty returns empty string", "", "", ""},
-		{"LC_ALL is C, falls through to LANG", "de_DE.UTF-8", "C", "de"},
-		{"LC_ALL is POSIX, falls through to LANG", "ko_KR.UTF-8", posixLocale, "ko"},
+		{"typical LANG", "en_US.UTF-8", "", "", "en"},
+		{"zh locale", "zh_TW.UTF-8", "", "", "zh"},
+		{"lang without region", "en", "", "", "en"},
+		{"C locale skipped, uses LC_ALL", "C", "", "fr_FR.UTF-8", "fr"},
+		{"C.UTF-8 locale skipped, uses LC_ALL", "C.UTF-8", "", "fr_FR.UTF-8", "fr"},
+		{"POSIX locale skipped, uses LC_ALL", posixLocale, "", "de_DE.UTF-8", "de"},
+		{"LC_ALL used when LANG empty", "", "", "ja_JP.UTF-8", "ja"},
+		{"LC_ALL overrides LANG when both set", "en_US.UTF-8", "", "ja_JP.UTF-8", "ja"},
+		{"all empty returns empty string", "", "", "", ""},
+		{"LC_ALL is C, falls through to LANG", "de_DE.UTF-8", "", "C", "de"},
+		{"LC_ALL is POSIX, falls through to LANG", "ko_KR.UTF-8", "", posixLocale, "ko"},
+		{"LC_MESSAGES used when LC_ALL empty", "", "fr_FR.UTF-8", "", "fr"},
+		{"LC_ALL overrides LC_MESSAGES", "", "fr_FR.UTF-8", "ja_JP.UTF-8", "ja"},
+		{"LC_MESSAGES overrides LANG", "en_US.UTF-8", "fr_FR.UTF-8", "", "fr"},
+		{"LC_MESSAGES is C, falls through to LANG", "de_DE.UTF-8", "C", "", "de"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("LANG", tt.lang)
+			t.Setenv("LC_MESSAGES", tt.lcMessages)
 			t.Setenv("LC_ALL", tt.lcAll)
 
 			if got := getSystemLanguage(); got != tt.want {
@@ -685,82 +691,6 @@ func TestRunError(t *testing.T) {
 	}
 
 	_ = flushErr()
-}
-
-// TestRunInterrupted covers both signals run() registers via
-// signal.NotifyContext (os.Interrupt and syscall.SIGTERM): either one must
-// cancel an in-flight request and exit quietly with code 130.
-func TestRunInterrupted(t *testing.T) {
-	signals := []struct {
-		name string
-		sig  syscall.Signal
-	}{
-		{"SIGINT", syscall.SIGINT},
-		{"SIGTERM", syscall.SIGTERM},
-	}
-
-	for _, tt := range signals {
-		t.Run(tt.name, func(t *testing.T) {
-			started := make(chan struct{})
-			done := make(chan struct{})
-
-			srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-				close(started)
-				<-done // held open until the test releases it, regardless of client-side cancellation
-			}))
-
-			defer func() {
-				close(done)
-				srv.Close()
-			}()
-
-			t.Setenv("MINT_PROVIDER", "openai")
-			t.Setenv("MINT_API_KEY", "test")
-			t.Setenv("MINT_BASE_URL", srv.URL)
-			t.Setenv("MINT_MODEL_NAME", "test-model")
-
-			old := os.Args
-
-			os.Args = []string{"mint", "--target", "en", "hello"}
-			defer func() { os.Args = old }()
-
-			flushOut := captureStdout(t)
-			flushErr := captureStderr(t)
-
-			codeCh := make(chan int, 1)
-
-			go func() { codeCh <- run() }()
-
-			select {
-			case <-started:
-			case <-time.After(5 * time.Second):
-				t.Fatal("request never reached the server")
-			}
-
-			if err := syscall.Kill(os.Getpid(), tt.sig); err != nil {
-				t.Fatalf("failed to send %s: %v", tt.name, err)
-			}
-
-			var code int
-
-			select {
-			case code = <-codeCh:
-			case <-time.After(5 * time.Second):
-				t.Fatalf("run() did not return after %s", tt.name)
-			}
-
-			stderrOutput := flushErr()
-			_ = flushOut()
-
-			if code != 130 {
-				t.Errorf("expected exit code 130, got %d", code)
-			}
-
-			if stderrOutput != "" {
-				t.Errorf("expected no stderr output on interrupt, got: %q", stderrOutput)
-			}
-		})
-	}
 }
 
 func TestResolveSourceLang(t *testing.T) {

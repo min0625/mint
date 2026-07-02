@@ -70,8 +70,14 @@ type message struct {
 }
 
 type streamDelta struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type       string `json:"type"`
+	Text       string `json:"text"`
+	StopReason string `json:"stop_reason"`
+}
+
+type streamError struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
 }
 
 type streamUsage struct {
@@ -88,6 +94,7 @@ type streamEvent struct {
 	Delta   streamDelta   `json:"delta"`
 	Message streamMessage `json:"message"`
 	Usage   streamUsage   `json:"usage"`
+	Error   *streamError  `json:"error"`
 }
 
 // Complete calls the Anthropic API with streaming and writes tokens to w as they arrive.
@@ -130,7 +137,10 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), maxScanLineBytes)
 
-	var usage llm.Usage
+	var (
+		usage     llm.Usage
+		truncated bool
+	)
 
 	out := llm.NewTrailingNewlineWriter(w)
 
@@ -148,10 +158,20 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 		}
 
 		switch event.Type {
+		case "error":
+			// Mid-stream error event (e.g. overloaded_error): the HTTP status
+			// was already 200, so this is the only failure signal we get.
+			if event.Error != nil {
+				return llm.Usage{}, fmt.Errorf("API stream error: %s: %s", event.Error.Type, event.Error.Message)
+			}
 		case "message_start":
 			usage.InputTokens = event.Message.Usage.InputTokens
 		case "message_delta":
 			usage.OutputTokens = event.Usage.OutputTokens
+
+			if event.Delta.StopReason == "max_tokens" {
+				truncated = true
+			}
 		case "content_block_delta":
 			if event.Delta.Type == "text_delta" {
 				if _, err := fmt.Fprint(out, event.Delta.Text); err != nil {
@@ -165,5 +185,15 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 		return llm.Usage{}, err
 	}
 
-	return usage, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return usage, err
+	}
+
+	// Surface truncation instead of silently returning partial text: without
+	// this, a long input would print an incomplete translation and exit 0.
+	if truncated {
+		return usage, fmt.Errorf("output truncated: response hit the %d output-token limit", maxTokens)
+	}
+
+	return usage, nil
 }

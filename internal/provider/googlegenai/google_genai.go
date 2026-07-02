@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -74,13 +75,21 @@ type generationConfig struct {
 	Temperature float64 `json:"temperature"`
 }
 
+type apiError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Status  string `json:"status"`
+}
+
 type responseBody struct {
 	Candidates    []candidate   `json:"candidates"`
 	UsageMetadata usageMetadata `json:"usageMetadata"`
+	Error         *apiError     `json:"error"`
 }
 
 type candidate struct {
-	Content content `json:"content"`
+	Content      content `json:"content"`
+	FinishReason string  `json:"finishReason"`
 }
 
 type usageMetadata struct {
@@ -130,7 +139,10 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), maxScanLineBytes)
 
-	var usage llm.Usage
+	var (
+		usage     llm.Usage
+		truncated bool
+	)
 
 	out := llm.NewTrailingNewlineWriter(w)
 
@@ -147,15 +159,27 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 			continue
 		}
 
+		// Mid-stream error object: the HTTP status was already 200, so this is
+		// the only failure signal we get.
+		if result.Error != nil {
+			return llm.Usage{}, fmt.Errorf("API stream error %d: %s", result.Error.Code, result.Error.Message)
+		}
+
 		// usageMetadata accumulates across chunks; the last value is the total.
 		if result.UsageMetadata.PromptTokenCount > 0 || result.UsageMetadata.CandidatesTokenCount > 0 {
 			usage.InputTokens = result.UsageMetadata.PromptTokenCount
 			usage.OutputTokens = result.UsageMetadata.CandidatesTokenCount
 		}
 
-		if len(result.Candidates) > 0 && len(result.Candidates[0].Content.Parts) > 0 {
-			if _, err := fmt.Fprint(out, result.Candidates[0].Content.Parts[0].Text); err != nil {
-				return llm.Usage{}, err
+		if len(result.Candidates) > 0 {
+			if result.Candidates[0].FinishReason == "MAX_TOKENS" {
+				truncated = true
+			}
+
+			if len(result.Candidates[0].Content.Parts) > 0 {
+				if _, err := fmt.Fprint(out, result.Candidates[0].Content.Parts[0].Text); err != nil {
+					return llm.Usage{}, err
+				}
 			}
 		}
 	}
@@ -164,5 +188,16 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 		return llm.Usage{}, err
 	}
 
-	return usage, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return usage, err
+	}
+
+	// Surface truncation instead of silently returning partial text: without
+	// this, a long input would print an incomplete translation and exit 0. No
+	// maxOutputTokens is requested, so the limit hit is the model default.
+	if truncated {
+		return usage, errors.New("output truncated: response hit the model's output-token limit")
+	}
+
+	return usage, nil
 }

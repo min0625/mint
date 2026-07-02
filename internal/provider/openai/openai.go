@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -80,12 +81,19 @@ type streamUsage struct {
 }
 
 type streamChoice struct {
-	Delta streamDelta `json:"delta"`
+	Delta        streamDelta `json:"delta"`
+	FinishReason string      `json:"finish_reason"`
+}
+
+type streamError struct {
+	Message string `json:"message"`
+	Type    string `json:"type"`
 }
 
 type streamResponse struct {
 	Choices []streamChoice `json:"choices"`
 	Usage   *streamUsage   `json:"usage"`
+	Error   *streamError   `json:"error"`
 }
 
 // Complete calls the OpenAI API with streaming and writes tokens to w as they arrive.
@@ -137,7 +145,10 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), maxScanLineBytes)
 
-	var usage llm.Usage
+	var (
+		usage     llm.Usage
+		truncated bool
+	)
 
 	out := llm.NewTrailingNewlineWriter(w)
 
@@ -157,12 +168,23 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 			continue
 		}
 
+		// Mid-stream error object: the HTTP status was already 200, so this is
+		// the only failure signal we get (some proxies and local servers emit
+		// errors this way).
+		if sr.Error != nil {
+			return llm.Usage{}, fmt.Errorf("API stream error: %s", sr.Error.Message)
+		}
+
 		if sr.Usage != nil {
 			usage.InputTokens = sr.Usage.PromptTokens
 			usage.OutputTokens = sr.Usage.CompletionTokens
 		}
 
 		if len(sr.Choices) > 0 {
+			if sr.Choices[0].FinishReason == "length" {
+				truncated = true
+			}
+
 			if _, err := fmt.Fprint(out, sr.Choices[0].Delta.Content); err != nil {
 				return llm.Usage{}, err
 			}
@@ -173,5 +195,16 @@ func (c *Client) Complete(ctx context.Context, system, user string, w io.Writer)
 		return llm.Usage{}, err
 	}
 
-	return usage, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return usage, err
+	}
+
+	// Surface truncation instead of silently returning partial text: without
+	// this, a long input would print an incomplete translation and exit 0. No
+	// max_tokens is requested, so the limit hit is the server or model default.
+	if truncated {
+		return usage, errors.New("output truncated: response hit the model's output-token limit")
+	}
+
+	return usage, nil
 }
