@@ -60,8 +60,18 @@ func TestValidateConfig(t *testing.T) {
 		{"valid openai with key", provider.Config{Provider: provider.ProviderOpenAI, APIKey: "k"}, ""},
 		{
 			"valid openai with base url no key (proxy)",
-			provider.Config{Provider: provider.ProviderOpenAI, BaseURL: "http://localhost:11434"},
+			provider.Config{Provider: provider.ProviderOpenAI, BaseURL: "http://localhost:11434", ModelName: "m"},
 			"",
+		},
+		{
+			"base url without model name",
+			provider.Config{Provider: provider.ProviderOpenAI, BaseURL: "http://localhost:11434"},
+			"MINT_MODEL_NAME",
+		},
+		{
+			"base url with key still requires model name",
+			provider.Config{Provider: provider.ProviderAnthropic, APIKey: "k", BaseURL: "http://proxy.example.com"},
+			"MINT_MODEL_NAME",
 		},
 		{"valid google-genai with key", provider.Config{Provider: provider.ProviderGoogleGenAI, APIKey: "k"}, ""},
 		{"valid anthropic with key", provider.Config{Provider: provider.ProviderAnthropic, APIKey: "k"}, ""},

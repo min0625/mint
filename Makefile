@@ -1,4 +1,6 @@
-VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD)
+# Leading "v" is stripped to match goreleaser's {{.Version}}, so `mint --version`
+# prints the same string for local builds and released binaries.
+VERSION ?= $(shell (git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD) | sed 's/^v//')
 COMMIT ?= $(shell git rev-parse HEAD)
 LDFLAGS ?= -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 NEW_FROM_REV ?= HEAD

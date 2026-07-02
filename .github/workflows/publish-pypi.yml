@@ -17,6 +17,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Check out the released tag (workflow_run head_branch is the tag
+          # name), not main HEAD, so the packaging scripts and README match
+          # the release being published.
+          ref: ${{ github.event.workflow_run.head_branch }}
 
       - uses: actions/setup-python@v5
         with:
@@ -58,4 +63,4 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/wheels/
-          skip_existing: true
+          skip-existing: true

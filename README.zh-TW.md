@@ -203,7 +203,7 @@ mint "こんにちは"   # ja → en: Hello
 | `MINT_PROVIDER` | `google-genai` \| `openai` \| `anthropic` | — (必填) |
 | `MINT_API_KEY` | API 金鑰；使用預設 endpoint 時必填；設定 `MINT_BASE_URL` 時選填（由代理處理認證） | — |
 | `MINT_BASE_URL` | 自訂 API base URL（僅填 domain，各提供商自行附加路徑）；搭配 `openai` 可指向 Ollama（`http://localhost:11434`）、LM Studio（`http://localhost:1234`）或任何 OpenAI 相容端點 | 提供商預設 |
-| `MINT_MODEL_NAME` | 使用的模型 | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` |
+| `MINT_MODEL_NAME` | 使用的模型；設定 `MINT_BASE_URL` 時必填 | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` |
 | `MINT_TARGET_LANG` | 目標語言，例如 `en` 或 `en,zh-TW,ja` | 系統區域設定 |
 | `MINT_VERBOSE` | 設為 `true` 可啟用詳細診斷輸出（等同於 `--verbose`） | `false` |
 
