@@ -50,5 +50,12 @@ func (c *Config) ValidateConfig() error {
 		return fmt.Errorf("MINT_API_KEY is required for provider: %s", c.Provider)
 	}
 
+	// A custom endpoint has no meaningful default model (e.g. Ollama would be
+	// sent this provider's cloud default and return a confusing server error),
+	// so fail fast with a clear message instead.
+	if c.BaseURL != "" && c.ModelName == "" {
+		return errors.New("MINT_MODEL_NAME is required when MINT_BASE_URL is set")
+	}
+
 	return nil
 }

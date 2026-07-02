@@ -203,7 +203,7 @@ mint "こんにちは"   # ja → en: Hello
 | `MINT_PROVIDER` | `google-genai` \| `openai` \| `anthropic` | — (必須) |
 | `MINT_API_KEY` | APIキー。デフォルトのエンドポイント使用時は必須。`MINT_BASE_URL`設定時は任意（プロキシ側で認証処理する場合） | — |
 | `MINT_BASE_URL` | カスタムAPIベースURL（ドメインのみ指定、パスは各プロバイダーが自動付与）。`openai`と組み合わせることで、Ollama（`http://localhost:11434`）、LM Studio（`http://localhost:1234`）、またはOpenAI互換エンドポイントを指定可能 | プロバイダーのデフォルト |
-| `MINT_MODEL_NAME` | 使用するモデル名 | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` |
+| `MINT_MODEL_NAME` | 使用するモデル名（`MINT_BASE_URL` 設定時は必須） | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` |
 | `MINT_TARGET_LANG` | ターゲット言語（例: `en` または `en,zh-TW,ja`） | システムのロケール設定 |
 | `MINT_VERBOSE` | `true`に設定すると詳細な診断出力が有効になります（`--verbose`相当） | `false` |
 

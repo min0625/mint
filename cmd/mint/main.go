@@ -38,24 +38,56 @@ func main() {
 	os.Exit(run())
 }
 
+// signalError is the cancel cause recorded when a termination signal arrives;
+// it carries the signal so run() can map it to the conventional exit code.
+type signalError struct{ sig os.Signal }
+
+func (e *signalError) Error() string { return "interrupted by " + e.sig.String() }
+
+// exitCode maps the signal to the shell convention 128+N: 130 for SIGINT,
+// 143 for SIGTERM.
+func (e *signalError) exitCode() int {
+	if s, ok := e.sig.(syscall.Signal); ok {
+		return 128 + int(s)
+	}
+
+	return 130
+}
+
 func run() int {
 	// No request timeout: the CLI waits as long as the backend needs (handy for
 	// slow local models). Ctrl+C / SIGTERM cancels the in-flight request.
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	//
+	// signal.NotifyContext is not used because it hides which signal fired,
+	// and SIGINT (130) and SIGTERM (143) must map to different exit codes; the
+	// cancel cause carries the signal instead.
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+
+	sigCh := make(chan os.Signal, 1)
+
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	go func() {
+		cancel(&signalError{sig: <-sigCh})
+	}()
 
 	if err := newRootCmd().ExecuteContext(ctx); err != nil {
 		// Compare against context.Cause(ctx), not context.Canceled: net/http
-		// surfaces context.Cause(ctx), which signal.NotifyContext sets to a
-		// private signalError rather than context.Canceled. Checking errors.Is
+		// surfaces context.Cause(ctx), which the signal goroutine above sets
+		// to a *signalErr rather than context.Canceled. Checking errors.Is
 		// against the actual cause (instead of just ctx.Err() != nil) also
 		// makes sure an unrelated error isn't misreported as a clean interrupt
 		// merely because a signal happened to arrive around the same time.
 		// (context.Cause(ctx) is nil until ctx is done, and errors.Is(err, nil)
 		// is always false for a non-nil err, so no separate nil check is needed.)
-		if errors.Is(err, context.Cause(ctx)) {
+		cause := context.Cause(ctx)
+
+		var sigErr *signalError
+		if errors.Is(err, cause) && errors.As(cause, &sigErr) {
 			// Interrupted by the user — exit quietly with the conventional code.
-			return 130
+			return sigErr.exitCode()
 		}
 
 		fmt.Fprintln(os.Stderr, "Error:", err)
@@ -505,9 +537,10 @@ func buildDetectPrompt(text string) (system, user, nonce string) {
 	return system, user, nonce
 }
 
-// getSystemLanguage gets the system language from the OS locale.
+// getSystemLanguage gets the system language from the OS locale, following the
+// POSIX priority order: LC_ALL > LC_MESSAGES > LANG.
 func getSystemLanguage() string {
-	for _, env := range []string{"LC_ALL", "LANG"} {
+	for _, env := range []string{"LC_ALL", "LC_MESSAGES", "LANG"} {
 		if lang := os.Getenv(env); lang != "" {
 			// Strip encoding suffix before cutting on "_":
 			// "C.UTF-8" → "C"; "en_US.UTF-8" → "en_US" (no change here)

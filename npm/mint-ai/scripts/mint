@@ -2,6 +2,7 @@
 "use strict";
 
 const { spawnSync } = require("child_process");
+const { constants } = require("os");
 const { getBinaryPath } = require("../index.js");
 
 let bin;
@@ -16,5 +17,10 @@ const result = spawnSync(bin, process.argv.slice(2), { stdio: "inherit" });
 if (result.error) {
   console.error(result.error.message);
   process.exit(1);
+}
+if (result.signal) {
+  // Child killed by a signal: status is null, so report the shell
+  // convention 128+N instead of masking it as success.
+  process.exit(128 + (constants.signals[result.signal] || 0));
 }
 process.exit(result.status ?? 0);

@@ -203,7 +203,7 @@ mint "こんにちは"   # ja → en: Hello
 | `MINT_PROVIDER` | `google-genai` \| `openai` \| `anthropic` | — (required) |
 | `MINT_API_KEY` | API key; required when using the default endpoint; optional when `MINT_BASE_URL` is set (proxy handles auth) | — |
 | `MINT_BASE_URL` | Custom API base URL (domain only; each provider appends its own path); use with `openai` to target Ollama (`http://localhost:11434`), LM Studio (`http://localhost:1234`), or any other OpenAI-compatible endpoint | Provider default |
-| `MINT_MODEL_NAME` | Model to use | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` |
+| `MINT_MODEL_NAME` | Model to use; required when `MINT_BASE_URL` is set | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` |
 | `MINT_TARGET_LANG` | Target language(s), e.g. `en` or `en,zh-TW,ja` | System locale |
 | `MINT_VERBOSE` | Set to `true` to enable verbose diagnostic output (equivalent to `--verbose`) | `false` |
 
