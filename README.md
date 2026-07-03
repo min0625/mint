@@ -25,7 +25,7 @@ cat document.txt | mint -t fr     # translate a whole file
 ## ✨ Why Mint?
 
 - **Zero-config** — Single binary; API keys via env vars, no config file pollution
-- **Multi-provider** — Google Gemini, OpenAI, Anthropic, or local Ollama / LM Studio
+- **Multi-provider** — Google Gemini, OpenAI, Anthropic, or any OpenAI-compatible endpoint (Ollama, LM Studio, OpenRouter, Groq, DeepSeek, llama.cpp, …)
 - **Smart detection** — Auto-detects language on every call; language-neutral content (numbers, symbols) passes through unchanged
 - **Smart correction** — Same-language input? Auto-corrects grammar & spelling instead of translating
 - **Streaming** — Output streams in real-time, no waiting for long translations
@@ -108,6 +108,29 @@ export MINT_MODEL_NAME=qwen2.5:7b  # use any model loaded in Ollama
 export MINT_PROVIDER=openai
 export MINT_BASE_URL=http://localhost:1234
 export MINT_MODEL_NAME=lmstudio-community/Qwen2.5-7B-Instruct-GGUF  # use any model loaded in LM Studio
+
+# llama.cpp llama-server (no API key needed)
+export MINT_PROVIDER=openai
+export MINT_BASE_URL=http://localhost:8080
+export MINT_MODEL_NAME=qwen2.5:7b  # match whatever model llama-server has loaded
+
+# OpenRouter (one key, hundreds of models — https://openrouter.ai/models)
+export MINT_PROVIDER=openai
+export MINT_BASE_URL=https://openrouter.ai/api
+export MINT_API_KEY=sk-or-...
+export MINT_MODEL_NAME=openai/gpt-4o-mini
+
+# Groq (fast inference, free tier)
+export MINT_PROVIDER=openai
+export MINT_BASE_URL=https://api.groq.com/openai
+export MINT_API_KEY=gsk_...
+export MINT_MODEL_NAME=llama-3.1-8b-instant
+
+# DeepSeek
+export MINT_PROVIDER=openai
+export MINT_BASE_URL=https://api.deepseek.com
+export MINT_API_KEY=sk-...
+export MINT_MODEL_NAME=deepseek-chat
 ```
 
 ### 2. Translate
@@ -125,7 +148,6 @@ Use `--verbose` / `-v` (or `MINT_VERBOSE=true`) to print diagnostic info and tok
 ```bash
 mint -t ja -v "Good morning"
 # [mint] provider: google-genai
-# [mint] model: gemini-3.1-flash-lite
 # [mint] single target — skipping language detection
 # [mint] target language: ja
 # おはようございます
@@ -204,7 +226,7 @@ mint "こんにちは"   # ja → en: Hello
 | `MINT_API_KEY` | API key; required when using the default endpoint; optional when `MINT_BASE_URL` is set (proxy handles auth) | — |
 | `MINT_BASE_URL` | Custom API base URL (domain only; each provider appends its own path); use with `openai` to target Ollama (`http://localhost:11434`), LM Studio (`http://localhost:1234`), or any other OpenAI-compatible endpoint | Provider default |
 | `MINT_MODEL_NAME` | Model to use; required when `MINT_BASE_URL` is set | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` |
-| `MINT_TARGET_LANG` | Target language(s), e.g. `en` or `en,zh-TW,ja` | System locale |
+| `MINT_TARGET_LANG` | Target language(s), e.g. `en` or `en,zh-TW,ja` | System locale, else `en` |
 | `MINT_VERBOSE` | Set to `true` to enable verbose diagnostic output (equivalent to `--verbose`) | `false` |
 
 ---
@@ -222,7 +244,7 @@ mint "こんにちは"   # ja → en: Hello
 
 ## 📅 Roadmap
 
-- [x] Multi-LLM provider support (Google Gemini, OpenAI, Anthropic, local via Ollama / LM Studio)
+- [x] Multi-LLM provider support (Google Gemini, OpenAI, Anthropic, or any OpenAI-compatible endpoint)
 - [x] Smart language detection and multi-language rotation via `MINT_TARGET_LANG`
 - [x] Explicit target language via `--target` / `-t` flag
 - [x] Explicit source language via `--source` / `-s` flag

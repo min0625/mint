@@ -25,7 +25,7 @@ cat document.txt | mint -t fr     # ファイル全体を翻訳
 ## ✨ Mintの特徴
 
 - **ゼロ設定** — 単一の実行ファイル。APIキーは環境変数で管理するため、設定ファイルを汚しません。
-- **マルチプロバイダー** — Google Gemini、OpenAI、Anthropicのほか、ローカルのOllamaやLM Studioにも対応。
+- **マルチプロバイダー** — Google Gemini、OpenAI、Anthropicに加え、OpenAI互換エンドポイント（Ollama、LM Studio、OpenRouter、Groq、DeepSeek、llama.cppなど）にも対応。
 - **スマート検出** — 実行のたびに言語を自動検出。言語に依存しない内容（数字、記号）はそのまま出力します。
 - **スマート修正** — 入力言語とターゲット言語が同じ場合は、翻訳ではなく文法やスペルの修正を行います。
 - **ストリーミング出力** — レスポンスをリアルタイムでストリーミングするため、長文翻訳でも待たされません。
@@ -108,6 +108,29 @@ export MINT_MODEL_NAME=qwen2.5:7b  # Ollamaでロード済みのモデル名に�
 export MINT_PROVIDER=openai
 export MINT_BASE_URL=http://localhost:1234
 export MINT_MODEL_NAME=lmstudio-community/Qwen2.5-7B-Instruct-GGUF  # LM Studioでロード済みのモデル名に変更
+
+# llama.cpp の llama-server（APIキー不要）
+export MINT_PROVIDER=openai
+export MINT_BASE_URL=http://localhost:8080
+export MINT_MODEL_NAME=qwen2.5:7b  # llama-serverでロード済みのモデル名に変更
+
+# OpenRouter（1つのキーで数百のモデルを利用可能 — https://openrouter.ai/models）
+export MINT_PROVIDER=openai
+export MINT_BASE_URL=https://openrouter.ai/api
+export MINT_API_KEY=sk-or-...
+export MINT_MODEL_NAME=openai/gpt-4o-mini
+
+# Groq（高速推論、無料枠あり）
+export MINT_PROVIDER=openai
+export MINT_BASE_URL=https://api.groq.com/openai
+export MINT_API_KEY=gsk_...
+export MINT_MODEL_NAME=llama-3.1-8b-instant
+
+# DeepSeek
+export MINT_PROVIDER=openai
+export MINT_BASE_URL=https://api.deepseek.com
+export MINT_API_KEY=sk-...
+export MINT_MODEL_NAME=deepseek-chat
 ```
 
 ### 2. 翻訳の実行
@@ -125,7 +148,6 @@ cat document.txt | mint -t zh-TW
 ```bash
 mint -t ja -v "Good morning"
 # [mint] provider: google-genai
-# [mint] model: gemini-3.1-flash-lite
 # [mint] single target — skipping language detection
 # [mint] target language: ja
 # おはようございます
@@ -204,7 +226,7 @@ mint "こんにちは"   # ja → en: Hello
 | `MINT_API_KEY` | APIキー。デフォルトのエンドポイント使用時は必須。`MINT_BASE_URL`設定時は任意（プロキシ側で認証処理する場合） | — |
 | `MINT_BASE_URL` | カスタムAPIベースURL（ドメインのみ指定、パスは各プロバイダーが自動付与）。`openai`と組み合わせることで、Ollama（`http://localhost:11434`）、LM Studio（`http://localhost:1234`）、またはOpenAI互換エンドポイントを指定可能 | プロバイダーのデフォルト |
 | `MINT_MODEL_NAME` | 使用するモデル名（`MINT_BASE_URL` 設定時は必須） | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` |
-| `MINT_TARGET_LANG` | ターゲット言語（例: `en` または `en,zh-TW,ja`） | システムのロケール設定 |
+| `MINT_TARGET_LANG` | ターゲット言語（例: `en` または `en,zh-TW,ja`） | システムのロケール設定（なければ `en`） |
 | `MINT_VERBOSE` | `true`に設定すると詳細な診断出力が有効になります（`--verbose`相当） | `false` |
 
 ---
@@ -222,7 +244,7 @@ mint "こんにちは"   # ja → en: Hello
 
 ## 📅 ロードマップ
 
-- [x] 複数のLLMプロバイダー対応（Google Gemini、OpenAI、Anthropic、ローカルのOllama / LM Studio）
+- [x] 複数のLLMプロバイダー対応（Google Gemini、OpenAI、Anthropic、およびOpenAI互換エンドポイント）
 - [x] `MINT_TARGET_LANG` による言語自動検出と多言語ローテーション
 - [x] `--target` / `-t` フラグによるターゲット言語の明示的指定
 - [x] `--source` / `-s` フラグによるソース言語の明示的指定

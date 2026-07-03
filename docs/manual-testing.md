@@ -210,9 +210,19 @@ mint -s en "Hello"               # 你好  (en matched → next: zh-TW; -v: expl
 `-s` accepts only a single language tag; like `-t`, a comma in the value is truncated to the first tag.
 `--source` is the long form of `-s`. There is no `MINT_SOURCE_LANG` env var — a source is per-input, not a persistent preference.
 
+> **Model note:** whether the homograph is actually translated depends on model quality, not
+> on the CLI — `-v` confirms the anchor is sent (`source language: fr`) either way. Observed
+> (2026-07): `gemini-3.1-flash-lite`, `claude-haiku-4-5`, and `gemma-4-e4b` return `bread`;
+> `gpt-4o-mini` and `llama3.1:8b` keep `pain` unchanged. Treat a wrong result here as a
+> model limitation, not a `-s` regression, unless the verbose anchor line is missing.
+
 ## 13. Error cases
 
 All errors go to stderr; the process exits with code 1.
+
+Config validation runs before input validation: if `MINT_PROVIDER` is unset, empty input
+reports the provider error, not `no input text provided`. The cases below assume a valid
+provider config is already in place (per the header of this file).
 
 ```sh
 # Empty or whitespace-only input
