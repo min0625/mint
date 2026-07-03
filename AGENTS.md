@@ -5,8 +5,9 @@ See [README.md](./README.md) for full project overview.
 
 ## Installation
 
-End-user install methods (pipx, npm, one-liner script, manual download) are documented in
-[README.md](./README.md). The install script lives at [script/install.sh](./script/install.sh).
+End-user install methods (Homebrew, pipx, npm, one-liner scripts, manual download) are documented
+in [README.md](./README.md). The install scripts live at [script/install.sh](./script/install.sh)
+(macOS/Linux) and [script/install.ps1](./script/install.ps1) (Windows PowerShell).
 
 For local development, build from source with `make build` (see below) or:
 
@@ -18,7 +19,7 @@ go install github.com/min0625/mint/cmd/mint@latest   # Go 1.26.4+; binary → $G
 
 ```bash
 make build        # compile → bin/mint (CGO_ENABLED=0, trimpath, ldflags injected)
-make test         # go test -race -failfast -v ./...
+make test         # go test -race -failfast ./...
 make lint         # golangci-lint (only new violations since HEAD)
 make fix          # golangci-lint --fix + go mod tidy
 make check        # check-tidy + lint + test (CI gate)
@@ -26,8 +27,9 @@ make check-tidy   # verify go.mod/go.sum are tidy
 make release-snapshot  # goreleaser release --snapshot --clean (test release locally)
 ```
 
-Tool versions are pinned in [mise.toml](./mise.toml) (Go 1.26.4, golangci-lint 2.12.2, goreleaser 2.16.0).
-Run `mise install` to set up the exact toolchain.
+Tool versions are pinned in [mise.toml](./mise.toml) (Go 1.26.4, golangci-lint 2.12.2, goreleaser 2.16.0, prek 0.4.6).
+Run `mise install` to set up the exact toolchain. Pre-commit hooks run `make check` via
+`prek` (config: [.pre-commit-config.yaml](./.pre-commit-config.yaml)).
 
 ## Distribution
 
@@ -37,7 +39,10 @@ live under [pypi/](./pypi/) (`build_wheels.py`) and [npm/](./npm/). For local wh
 steps see [pypi/](./pypi/).
 
 **Release trigger:** push a tag matching `v*.*.*` → `release.yml` builds multi-platform
-binaries → `publish-pypi.yml` assembles wheels and uploads to PyPI.
+binaries → `publish-pypi.yml` assembles wheels and uploads to PyPI, and `publish-npm.yml`
+publishes the npm packages (both run on `workflow_run` after Release succeeds). The Homebrew
+cask in `min0625/homebrew-tap` is updated by goreleaser itself (see `homebrew_casks` in
+[.goreleaser.yaml](./.goreleaser.yaml)).
 
 ## Project Layout
 
@@ -52,6 +57,10 @@ internal/provider/
   googlegenai/google_genai.go        # Google Gemini HTTP client (implements Completer)
   openai/openai.go                   # OpenAI GPT HTTP client (implements Completer)
   anthropic/anthropic.go             # Anthropic Claude HTTP client (implements Completer)
+script/install.sh, install.ps1      # end-user one-liner install scripts (macOS/Linux, Windows)
+docs/manual-testing.md               # manual test cases for humans and AI agents
+npm/, pypi/                          # npm / PyPI packaging that wraps the released binaries
+testdata/sample.txt                  # long-form input used in tests and token-usage measurements
 bin/mint                             # compiled binary (gitignored)
 .goreleaser.yaml                     # GoReleaser multi-platform release configuration
 .github/workflows/release.yml        # GitHub Actions: triggered on v*.*.* tag push
@@ -63,7 +72,7 @@ bin/mint                             # compiled binary (gitignored)
 |----------|-------------|----------|---------|
 | `MINT_PROVIDER` | LLM provider: `google-genai`, `openai`, `anthropic` | Yes | — |
 | `MINT_API_KEY` | API key for the chosen provider; optional when `MINT_BASE_URL` is set | Conditional* | — |
-| `MINT_BASE_URL` | Custom API base URL (domain only; each provider appends its own path); use with `openai` to target local inference servers — Ollama (`http://localhost:11434`) or LM Studio (`http://localhost:1234`); optional for cloud providers to point to a proxy | Conditional* | Provider default |
+| `MINT_BASE_URL` | Custom API base URL (domain only; each provider appends its own path); use with `openai` to target any OpenAI-compatible endpoint — local servers (Ollama `http://localhost:11434`, LM Studio `http://localhost:1234`, llama.cpp `http://localhost:8080`) or hosted services (OpenRouter, Groq, DeepSeek); optional for cloud providers to point to a proxy | Conditional* | Provider default |
 | `MINT_MODEL_NAME` | LLM model name to use | Required when `MINT_BASE_URL` is set; optional otherwise | Provider default** |
 | `MINT_TARGET_LANG` | Target language(s) - single or comma-separated (e.g. `en`, `en,zh-TW,ja`) | Optional | System locale or `en` |
 | `MINT_VERBOSE` | Set to `true` to enable verbose diagnostic output to stderr (equivalent to `--verbose`) | Optional | `false` |
@@ -73,6 +82,7 @@ bin/mint                             # compiled binary (gitignored)
 
 ## Documentation
 
+- **Manual test cases** — [docs/manual-testing.md](./docs/manual-testing.md) lists end-to-end CLI cases (with expected output and verbose diagnostics) that AI agents and humans can run to verify behavior; keep it in sync when CLI behavior, flags, or error messages change.
 - **Multilingual README sync** — **all** README variants must be kept in sync: `README.md` (English, the canonical source) and every `README.<locale>.md` translation. [LANGUAGES.md](./LANGUAGES.md) is the authoritative list of variants — consult it first to confirm the full set, since new languages are added over time. Whenever one README is updated, apply the equivalent change to *every* other variant listed there. New README language variants follow the pattern `README.<locale>.md`.
 - **Language list** — the list of available languages lives **only** in [LANGUAGES.md](./LANGUAGES.md). Each README links to it with a single static line, written **in that README's own language** (e.g. English: `🌐 Other languages`; Traditional Chinese: `🌐 其他語言`). This line never changes when languages are added. To add a language: create `README.<locale>.md` and add one entry to `LANGUAGES.md` — do **not** add a per-language switcher row to every README.
 - **Absolute URLs in README headers** — `README.md` is shipped as the PyPI long-description and the npm package readme. PyPI does **not** rewrite relative links, so the `LANGUAGES.md` link in each README must be an **absolute** GitHub URL (`https://github.com/min0625/mint/blob/main/LANGUAGES.md`). Links *inside* `LANGUAGES.md` may stay relative — that file is GitHub-only (not packaged into PyPI/npm).

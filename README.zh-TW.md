@@ -25,7 +25,7 @@ cat document.txt | mint -t fr     # 翻譯整個檔案
 ## ✨ 為什麼是 Mint？
 
 - **零設定** — 單一執行檔；API 金鑰透過環境變數管理，不污染設定檔
-- **多提供商** — Google Gemini、OpenAI、Anthropic，或本地 Ollama / LM Studio
+- **多提供商** — Google Gemini、OpenAI、Anthropic，或任何 OpenAI 相容端點（Ollama、LM Studio、OpenRouter、Groq、DeepSeek、llama.cpp 等）
 - **智慧偵測** — 每次呼叫皆自動偵測語言；語言中性的內容（數字、符號）原樣輸出
 - **智慧修正** — 輸入語言與目標語言相同？自動修正語法與拼字，而非翻譯
 - **串流輸出** — 即時串流回應，翻譯長文不需等待
@@ -108,6 +108,29 @@ export MINT_MODEL_NAME=qwen2.5:7b  # 替換為 Ollama 中已載入的任意模�
 export MINT_PROVIDER=openai
 export MINT_BASE_URL=http://localhost:1234
 export MINT_MODEL_NAME=lmstudio-community/Qwen2.5-7B-Instruct-GGUF  # 替換為 LM Studio 中已載入的任意模型
+
+# llama.cpp 的 llama-server（無需 API 金鑰）
+export MINT_PROVIDER=openai
+export MINT_BASE_URL=http://localhost:8080
+export MINT_MODEL_NAME=qwen2.5:7b  # 替換為 llama-server 中已載入的模型
+
+# OpenRouter（一把金鑰、數百種模型 — https://openrouter.ai/models）
+export MINT_PROVIDER=openai
+export MINT_BASE_URL=https://openrouter.ai/api
+export MINT_API_KEY=sk-or-...
+export MINT_MODEL_NAME=openai/gpt-4o-mini
+
+# Groq（推論速度快，有免費層級）
+export MINT_PROVIDER=openai
+export MINT_BASE_URL=https://api.groq.com/openai
+export MINT_API_KEY=gsk_...
+export MINT_MODEL_NAME=llama-3.1-8b-instant
+
+# DeepSeek
+export MINT_PROVIDER=openai
+export MINT_BASE_URL=https://api.deepseek.com
+export MINT_API_KEY=sk-...
+export MINT_MODEL_NAME=deepseek-chat
 ```
 
 ### 2. 翻譯
@@ -125,7 +148,6 @@ cat document.txt | mint -t zh-TW
 ```bash
 mint -t ja -v "Good morning"
 # [mint] provider: google-genai
-# [mint] model: gemini-3.1-flash-lite
 # [mint] single target — skipping language detection
 # [mint] target language: ja
 # おはようございます
@@ -204,7 +226,7 @@ mint "こんにちは"   # ja → en: Hello
 | `MINT_API_KEY` | API 金鑰；使用預設 endpoint 時必填；設定 `MINT_BASE_URL` 時選填（由代理處理認證） | — |
 | `MINT_BASE_URL` | 自訂 API base URL（僅填 domain，各提供商自行附加路徑）；搭配 `openai` 可指向 Ollama（`http://localhost:11434`）、LM Studio（`http://localhost:1234`）或任何 OpenAI 相容端點 | 提供商預設 |
 | `MINT_MODEL_NAME` | 使用的模型；設定 `MINT_BASE_URL` 時必填 | `gemini-3.1-flash-lite` / `gpt-4o-mini` / `claude-haiku-4-5` |
-| `MINT_TARGET_LANG` | 目標語言，例如 `en` 或 `en,zh-TW,ja` | 系統區域設定 |
+| `MINT_TARGET_LANG` | 目標語言，例如 `en` 或 `en,zh-TW,ja` | 系統區域設定，否則 `en` |
 | `MINT_VERBOSE` | 設為 `true` 可啟用詳細診斷輸出（等同於 `--verbose`） | `false` |
 
 ---
@@ -222,7 +244,7 @@ mint "こんにちは"   # ja → en: Hello
 
 ## 📅 發展藍圖
 
-- [x] 多 LLM 提供商支援（Google Gemini、OpenAI、Anthropic，本地透過 Ollama / LM Studio）
+- [x] 多 LLM 提供商支援（Google Gemini、OpenAI、Anthropic，或任何 OpenAI 相容端點）
 - [x] 透過 `MINT_TARGET_LANG` 實現智慧語言偵測與多語言輪換
 - [x] 透過 `--target` / `-t` 旗標明確指定目標語言
 - [x] 透過 `--source` / `-s` 旗標明確指定來源語言
