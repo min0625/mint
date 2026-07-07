@@ -14,6 +14,12 @@ type Usage struct {
 	OutputTokens int
 }
 
+// Add accumulates token counts from another Usage.
+func (u *Usage) Add(o Usage) {
+	u.InputTokens += o.InputTokens
+	u.OutputTokens += o.OutputTokens
+}
+
 // Completer sends a prompt to an LLM and streams the response.
 // system holds the task instructions; user holds the (possibly untrusted) input data.
 // Implementations write tokens directly to w as they arrive.

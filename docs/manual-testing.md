@@ -278,3 +278,32 @@ Verbose stderr output (single-target mode):
 The `model:` line appears only when `MINT_MODEL_NAME` is set (likewise `base_url:` for
 `MINT_BASE_URL`); with provider defaults both are omitted, as in the abbreviated example at
 the top of this file.
+
+## 15. Long-input chunked translation
+
+Input longer than 2000 runes is split at paragraph boundaries (falling back to line
+breaks, then spaces) and translated chunk by chunk — one LLM request per chunk — so a
+long document cannot hit the model's output-token limit and come back truncated. Blank
+lines between paragraphs are preserved in the output. Shorter input is unaffected:
+one request, behavior identical to before.
+
+```sh
+# Build a ~4500-rune three-paragraph document, then translate it
+python3 -c 'p = ("hello world " * 125).strip(); print(p + "\n\n" + p + "\n\n" + p, end="")' > /tmp/long.txt
+mint -t zh-TW -v < /tmp/long.txt
+# [mint] long input — split into 3 chunks (max 2000 runes each)
+# ... three translated paragraphs, separated by blank lines
+```
+
+In rotation mode, language detection samples the first chunk that contains letters
+(falling back to the first chunk if none do), so detection cost does not grow with
+document length. If that sample comes back language-neutral, a single-chunk document is
+printed unchanged as usual, but a multi-chunk document falls back to the first
+configured target instead — a neutral sample doesn't mean the rest of a longer document
+is neutral too. A language-neutral chunk (e.g. a block of numbers) is printed unchanged
+with no LLM call. If a request fails mid-document, the error names the chunk:
+`Error: translation failed: ... (chunk 2/3)`, and any tokens already spent on earlier
+chunks — including the failing chunk's own usage, if the provider returned any alongside
+the error (e.g. hitting the output-token limit) — are still reported in verbose mode. A
+local output-write failure (e.g. a closed pipe) is named the same way but is not
+mislabeled as a translation failure: `Error: write output: ... (chunk 2/3)`.

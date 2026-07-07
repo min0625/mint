@@ -250,7 +250,7 @@ mint "こんにちは"   # ja → en: Hello
 - [x] Explicit source language via `--source` / `-s` flag
 - [x] Streaming output
 - [x] GoReleaser multi-platform binary release (Linux / macOS / Windows)
-- [ ] Batch translation mode
+- [x] Batch translation mode — long input is split at paragraph boundaries and translated chunk by chunk
 - [ ] Glossary / custom dictionary support
 - [ ] Output format options (plain text, JSON, Markdown)
 - [ ] Caching for repeated translations
