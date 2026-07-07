@@ -1068,3 +1068,431 @@ func TestNewRootCmdSourceRotation(t *testing.T) {
 		t.Errorf("expected exactly 1 LLM call (no detection), got %d", calls)
 	}
 }
+
+// TestNewRootCmdChunkedTranslation verifies that input longer than
+// maxChunkRunes is split at paragraph boundaries, translated in one request
+// per chunk, and reassembled with the original blank-line separation.
+func TestNewRootCmdChunkedTranslation(t *testing.T) {
+	var calls int
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"OK\"}}]}\n\ndata: [DONE]\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+
+	// Two paragraphs of ~1500 runes each: together they exceed maxChunkRunes,
+	// so each becomes its own chunk (and its own request).
+	para := strings.TrimSuffix(strings.Repeat("hello world ", 125), " ")
+	input := para + "\n\n" + para
+
+	flush := captureStdout(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--target", "fr", input})
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		_ = flush()
+
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got, want := flush(), "OK\n\nOK\n"; got != want {
+		t.Errorf("output = %q, want %q", got, want)
+	}
+
+	if calls != 2 {
+		t.Errorf("expected 2 LLM calls (one per chunk), got %d", calls)
+	}
+}
+
+// TestNewRootCmdChunkedLeadingBlankLine verifies that a blank-line run before
+// a long document's first paragraph survives in the output even though the
+// mock LLM never echoes it — proving the leading separator is reprinted by
+// the CLI itself rather than sent to the model as part of a chunk's text.
+func TestNewRootCmdChunkedLeadingBlankLine(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"OK\"}}]}\n\ndata: [DONE]\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+
+	// A leading blank-line run before a single paragraph long enough to force
+	// chunking; the mock always answers "OK", so if the leading "\n\n" showed
+	// up in the output it could only have come from the reprinted separator.
+	para := strings.TrimSuffix(strings.Repeat("hello world ", 200), " ")
+	input := "\n\n" + para
+
+	flush := captureStdout(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--target", "fr", input})
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		_ = flush()
+
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := flush(); !strings.HasPrefix(got, "\n\nOK") {
+		t.Errorf("output = %q, want it to start with the preserved leading blank-line run", got)
+	}
+}
+
+// TestNewRootCmdChunkedNeutralChunk verifies that a language-neutral chunk
+// (no letters) inside a long document is printed unchanged without an LLM
+// call, while the surrounding chunks are still translated.
+func TestNewRootCmdChunkedNeutralChunk(t *testing.T) {
+	var calls int
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"OK\"}}]}\n\ndata: [DONE]\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+
+	// A 1900-rune digit paragraph between two 1500-rune text paragraphs: too
+	// big to pack with either neighbor, so it becomes its own (neutral) chunk.
+	para := strings.TrimSuffix(strings.Repeat("hello world ", 125), " ")
+	digits := strings.Repeat("1234567890", 190)
+	input := para + "\n\n" + digits + "\n\n" + para
+
+	flush := captureStdout(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--target", "fr", input})
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		_ = flush()
+
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got, want := flush(), "OK\n\n"+digits+"\n\nOK\n"; got != want {
+		t.Errorf("output = %q, want %q", got, want)
+	}
+
+	if calls != 2 {
+		t.Errorf("expected 2 LLM calls (neutral chunk skips the LLM), got %d", calls)
+	}
+}
+
+// TestNewRootCmdChunkedNeutralFinalChunkTrailingNewline verifies that a
+// language-neutral final chunk whose own text ends in a single trailing
+// newline (not a paragraph-boundary run, so it stays inside the chunk's text
+// rather than becoming a separator) does not produce a second trailing
+// newline on top of the one translateChunks always appends.
+func TestNewRootCmdChunkedNeutralFinalChunkTrailingNewline(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"OK\"}}]}\n\ndata: [DONE]\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+
+	// The digit block ends in a single "\n" — below the 2-newline run needed
+	// to be captured as a separator — so it stays inside the final chunk's
+	// own text and that chunk is language-neutral (no letters).
+	para := strings.TrimSuffix(strings.Repeat("hello world ", 125), " ")
+	digits := strings.Repeat("1234567890", 190) + "\n"
+	input := para + "\n\n" + digits
+
+	flush := captureStdout(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--target", "fr", input})
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		_ = flush()
+
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got, want := flush(), "OK\n\n"+digits; got != want {
+		t.Errorf("output = %q, want %q (exactly one trailing newline, not two)", got, want)
+	}
+}
+
+// TestNewRootCmdChunkedErrorNamesChunk verifies that a failure mid-document
+// reports which chunk failed.
+func TestNewRootCmdChunkedErrorNamesChunk(t *testing.T) {
+	var calls int
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls > 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = io.WriteString(w, `{"error":"server error"}`)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"OK\"}}]}\n\ndata: [DONE]\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+
+	para := strings.TrimSuffix(strings.Repeat("hello world ", 125), " ")
+	input := para + "\n\n" + para
+
+	flush := captureStdout(t)
+	defer flush()
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--target", "fr", input})
+
+	err := cmd.ExecuteContext(context.Background())
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "chunk 2/2") {
+		t.Errorf("error %q does not name the failing chunk", err.Error())
+	}
+}
+
+// TestNewRootCmdChunkedSpaceSplitJoinsWithSpace verifies that a single
+// no-newline line long enough to be word-split keeps its pieces joined by
+// the original space, not a hard-injected newline (every provider guarantees
+// its own stream ends in a newline, which must not leak into the join).
+func TestNewRootCmdChunkedSpaceSplitJoinsWithSpace(t *testing.T) {
+	var calls int
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"OK\"}}]}\n\ndata: [DONE]\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+
+	// A single line with no newlines at all, long enough that it must be
+	// word-split into two chunks.
+	input := strings.TrimSuffix(strings.Repeat("hello world ", 210), " ")
+
+	flush := captureStdout(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--target", "fr", input})
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		_ = flush()
+
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got, want := flush(), "OK OK\n"; got != want {
+		t.Errorf("output = %q, want %q (pieces joined by the original space, not a newline)", got, want)
+	}
+
+	if calls != 2 {
+		t.Errorf("expected 2 LLM calls (one per word-split piece), got %d", calls)
+	}
+}
+
+// TestNewRootCmdChunkedNeutralSampleFallsBackToTranslation verifies that when
+// rotation-mode detection samples a chunk the model classifies as "neutral"
+// in a multi-chunk document, the whole document is NOT passed through
+// unchanged — a neutral sample doesn't mean the rest of a longer document is
+// neutral too. Translation proceeds using the first configured target.
+func TestNewRootCmdChunkedNeutralSampleFallsBackToTranslation(t *testing.T) {
+	var calls int
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"neutral\"}}]}\n\ndata: [DONE]\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+	t.Setenv("MINT_TARGET_LANG", "en,fr")
+
+	para := strings.TrimSuffix(strings.Repeat("hello world ", 125), " ")
+	input := para + "\n\n" + para
+
+	flush := captureStdout(t)
+	defer flush()
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{input})
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// 1 detection call (sampling only the first chunk) + 1 translation call
+	// per chunk — not a single detection call followed by a verbatim
+	// pass-through of the whole document.
+	if calls != 3 {
+		t.Errorf("expected 3 LLM calls (1 detect + 2 translate), got %d", calls)
+	}
+}
+
+// TestNewRootCmdChunkedUsageLoggedOnError verifies that token usage already
+// spent on earlier, successful chunks is still logged in verbose mode even
+// when a later chunk's request fails.
+func TestNewRootCmdChunkedUsageLoggedOnError(t *testing.T) {
+	var calls int
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls > 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = io.WriteString(w, `{"error":"server error"}`)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"OK\"}}]}\n\ndata: [DONE]\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+
+	para := strings.TrimSuffix(strings.Repeat("hello world ", 125), " ")
+	input := para + "\n\n" + para
+
+	flushOut := captureStdout(t)
+	flushErr := captureStderr(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--target", "fr", "--verbose", input})
+
+	err := cmd.ExecuteContext(context.Background())
+
+	_ = flushOut()
+	stderr := flushErr()
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !strings.Contains(stderr, "tokens:") {
+		t.Errorf("stderr = %q, want a tokens: line despite the mid-document failure", stderr)
+	}
+}
+
+// TestNewRootCmdChunkedTrailingNewlineRunNormalized verifies that a long,
+// multi-chunk document whose original input ends in a run of blank lines
+// still produces output with exactly one trailing newline — matching the
+// single-chunk/unchunked behavior — instead of reprinting the last chunk's
+// own separator on top of the terminating newline.
+func TestNewRootCmdChunkedTrailingNewlineRunNormalized(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"OK\"}}]}\n\ndata: [DONE]\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("MINT_PROVIDER", "openai")
+	t.Setenv("MINT_API_KEY", "test")
+	t.Setenv("MINT_BASE_URL", srv.URL)
+	t.Setenv("MINT_MODEL_NAME", "test-model")
+
+	// A positional-arg document (unlike stdin, args are not newline-trimmed)
+	// whose two paragraphs are followed by a trailing blank-line run.
+	para := strings.TrimSuffix(strings.Repeat("hello world ", 125), " ")
+	input := para + "\n\n" + para + "\n\n"
+
+	flush := captureStdout(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--target", "fr", input})
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		_ = flush()
+
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got, want := flush(), "OK\n\nOK\n"; got != want {
+		t.Errorf(
+			"output = %q, want %q (exactly one trailing newline, not the original blank-line run plus one)",
+			got,
+			want,
+		)
+	}
+}
+
+// TestNewlineTrimWriter verifies that newlineTrimWriter withholds a trailing
+// run of '\n' bytes across Write calls and discards it entirely on Done,
+// while newlines followed by further content pass through unchanged.
+func TestNewlineTrimWriter(t *testing.T) {
+	tests := []struct {
+		name   string
+		writes []string
+		want   string
+	}{
+		{"no trailing newline", []string{"foo"}, "foo"},
+		{"single trailing newline", []string{"foo\n"}, "foo"},
+		{"multiple trailing newlines", []string{"foo\n\n\n"}, "foo"},
+		{"blank line mid-stream is preserved", []string{"foo\n\nbar"}, "foo\n\nbar"},
+		{"trailing newlines split across writes", []string{"foo", "\n", "\n"}, "foo"},
+		{"newline then more content flushes it", []string{"foo\n", "bar"}, "foo\nbar"},
+		{"only newlines", []string{"\n\n\n"}, ""},
+		{"no writes at all", []string{}, ""},
+		{"trailing CRLF is fully withheld, no stray \\r", []string{"foo\r\n"}, "foo"},
+		{"CRLF then more content flushes it verbatim", []string{"foo\r\n", "bar"}, "foo\r\nbar"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+
+			trim := newNewlineTrimWriter(&buf)
+			for _, w := range tt.writes {
+				if _, err := trim.Write([]byte(w)); err != nil {
+					t.Fatalf("Write(%q): %v", w, err)
+				}
+			}
+
+			trim.Done()
+
+			if got := buf.String(); got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

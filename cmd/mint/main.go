@@ -207,6 +207,14 @@ func newRootCmd() *cobra.Command {
 				return nil
 			}
 
+			// Long input is split into chunks so no single request can hit the
+			// model's output-token limit; each chunk is translated in its own
+			// request and streamed out in order.
+			chunks := splitChunks(text, maxChunkRunes)
+			if len(chunks) > 1 {
+				logv("long input — split into %d chunks (max %d runes each)", len(chunks), maxChunkRunes)
+			}
+
 			switch {
 			case len(targetLangs) == 1:
 				actualTargetLang = targetLangs[0]
@@ -219,54 +227,49 @@ func newRootCmd() *cobra.Command {
 
 				actualTargetLang = determineActualTargetLang(sourceLang, targetLangs)
 			default:
-				inputLang, detectUsage, err := detectLanguage(ctx, t, text)
+				inputLang, detectUsage, err := detectLanguage(ctx, t, detectSample(chunks))
 				if err != nil {
 					return fmt.Errorf("language detection failed: %w", err)
 				}
 
 				logv("detected input language: %q", canonicalLangTag(inputLang))
 
-				// Language-neutral content (numbers, symbols): output unchanged,
-				// no rewrite call needed.
-				if inputLang == "" {
+				totalUsage.Add(detectUsage)
+
+				switch {
+				case inputLang != "":
+					actualTargetLang = determineActualTargetLang(inputLang, targetLangs)
+				case len(chunks) == 1:
+					// The whole document is this one chunk and the LLM says
+					// it's language-neutral: output unchanged, no rewrite
+					// call needed.
 					logv("language-neutral content — outputting unchanged")
-					logv("tokens: %d in / %d out", detectUsage.InputTokens, detectUsage.OutputTokens)
+					logv("tokens: %d in / %d out", totalUsage.InputTokens, totalUsage.OutputTokens)
 					fmt.Println(text)
 
 					return nil
+				default:
+					// The detection sample came back neutral, but it's only
+					// one chunk of a longer document — a later chunk may
+					// carry the real language, so the whole document can't be
+					// passed through on this alone. Fall back to the first
+					// configured target; each chunk's own neutral check still
+					// skips the LLM call for genuinely neutral chunks.
+					logv("neutral detection sample in a multi-chunk document — defaulting to first target")
+
+					actualTargetLang = determineActualTargetLang(inputLang, targetLangs)
 				}
-
-				totalUsage.InputTokens += detectUsage.InputTokens
-				totalUsage.OutputTokens += detectUsage.OutputTokens
-
-				actualTargetLang = determineActualTargetLang(inputLang, targetLangs)
 			}
 
 			logv("target language: %s", canonicalLangTag(actualTargetLang))
 
-			// Rewrite the input in the target language, correcting grammar and
-			// spelling along the way. Anchoring on the target tag also pins the
-			// output script, so the model can't drift into the wrong variant
-			// (e.g. Simplified for zh-TW).
-			system, user, nonce := buildRewritePrompt(sourceLang, actualTargetLang, text)
+			translateUsage, err := translateChunks(ctx, t, chunks, sourceLang, actualTargetLang)
+			totalUsage.Add(translateUsage)
+			logv("tokens: %d in / %d out", totalUsage.InputTokens, totalUsage.OutputTokens)
 
-			// Weaker models occasionally echo the nonce delimiter back into the
-			// output. Filter it out before it reaches the user — the nonce is
-			// our own injected format noise and must never be visible.
-			out := newNonceFilter(os.Stdout, nonce)
-
-			translateUsage, err := t.Complete(ctx, system, user, out)
 			if err != nil {
-				return fmt.Errorf("translation failed: %w", err)
-			}
-
-			if err := out.Flush(); err != nil {
 				return err
 			}
-
-			totalUsage.InputTokens += translateUsage.InputTokens
-			totalUsage.OutputTokens += translateUsage.OutputTokens
-			logv("tokens: %d in / %d out", totalUsage.InputTokens, totalUsage.OutputTokens)
 
 			return nil
 		},
@@ -469,6 +472,65 @@ func (f *nonceFilter) Flush() error {
 	return err
 }
 
+// newlineTrimWriter wraps an io.Writer and withholds any trailing run of
+// complete newline tokens ("\n" or "\r\n"), releasing them only once further
+// content arrives. Done discards whatever run remains withheld once the
+// stream is complete.
+//
+// This lets translateChunk print a chunk's translation without committing to
+// how many trailing newlines the model happened to emit (including a stray
+// '\r' from a model that writes CRLF line endings) — the caller reprints the
+// chunk's own original separator afterward, so the stream here must not carry
+// a trailing newline of its own. A lone '\r' not paired with a following '\n'
+// is not a newline token (matching chunk.go's own definition) and is never
+// withheld, so it cannot be mistaken for part of a trimmable run.
+type newlineTrimWriter struct {
+	w       io.Writer
+	pending []byte
+}
+
+func newNewlineTrimWriter(w io.Writer) *newlineTrimWriter {
+	return &newlineTrimWriter{w: w}
+}
+
+// trimTrailingNewlineRun splits b into content and the maximal trailing run
+// of newline tokens ("\n" or "\r\n") at its end. A lone trailing '\r' not
+// paired with a following '\n' is not a newline token and stays in content.
+func trimTrailingNewlineRun(b []byte) (content, trimmed []byte) {
+	end := len(b)
+
+	for end > 0 && b[end-1] == '\n' {
+		if end >= 2 && b[end-2] == '\r' {
+			end -= 2
+		} else {
+			end--
+		}
+	}
+
+	return b[:end], b[end:]
+}
+
+func (t *newlineTrimWriter) Write(p []byte) (int, error) {
+	t.pending = append(t.pending, p...)
+	content, trimmed := trimTrailingNewlineRun(t.pending)
+
+	if len(content) > 0 {
+		if _, err := t.w.Write(content); err != nil {
+			return 0, err
+		}
+	}
+
+	t.pending = append([]byte(nil), trimmed...)
+
+	return len(p), nil
+}
+
+// Done discards any withheld trailing newlines. Must be called once, after
+// the final Write.
+func (t *newlineTrimWriter) Done() {
+	t.pending = nil
+}
+
 // buildRewritePrompt builds the system instruction and user message for the
 // rewrite/translation task. Instructions go to system (LLM role boundary);
 // only the nonce-wrapped user text goes to user (untrusted input).
@@ -568,6 +630,119 @@ func isLangNeutral(text string) bool {
 	}
 
 	return true
+}
+
+// detectSample returns the first chunk that contains letters, falling back to
+// the first chunk. Detection only needs a sample, not the whole document, so
+// long input does not burn tokens on the detection call.
+func detectSample(chunks []chunk) string {
+	for _, c := range chunks {
+		if !isLangNeutral(c.text) {
+			return c.text
+		}
+	}
+
+	return chunks[0].text
+}
+
+// translateChunks rewrites each chunk in the target language, correcting
+// grammar and spelling along the way, and streams the results to stdout in
+// order. Anchoring on the target tag also pins the output script, so the
+// model can't drift into the wrong variant (e.g. Simplified for zh-TW).
+//
+// Each chunk's original separator (a paragraph gap, a line break, a single
+// space, or nothing) is reprinted verbatim between chunks, so the document's
+// exact internal whitespace survives translation regardless of how it was
+// split. The whole document always ends with exactly one trailing newline —
+// the last chunk's own separator (e.g. trailing blank lines in the original
+// input) is not reprinted, and each chunk's own trailing newline run is
+// trimmed before printing (see newlineTrimWriter) — regardless of how many
+// newlines the model or the original input produced.
+func translateChunks(
+	ctx context.Context,
+	t llm.Completer,
+	chunks []chunk,
+	sourceLang, targetLang string,
+) (llm.Usage, error) {
+	var total llm.Usage
+
+	chunked := len(chunks) > 1
+
+	// wrapErr names the chunk a failure happened in, for every error this
+	// function can return — not just translateChunk's own — so a write
+	// failure on a reprinted separator or the final newline is identified
+	// exactly like a translation failure.
+	wrapErr := func(err error, chunkNum int) error {
+		if chunked {
+			return fmt.Errorf("%w (chunk %d/%d)", err, chunkNum, len(chunks))
+		}
+
+		return err
+	}
+
+	for i, c := range chunks {
+		usage, err := translateChunk(ctx, t, c, sourceLang, targetLang)
+		total.Add(usage)
+
+		if err != nil {
+			return total, wrapErr(err, i+1)
+		}
+
+		if i < len(chunks)-1 {
+			if _, err := fmt.Print(c.sep); err != nil {
+				return total, wrapErr(fmt.Errorf("write output: %w", err), i+1)
+			}
+		}
+	}
+
+	if _, err := fmt.Println(); err != nil {
+		return total, wrapErr(fmt.Errorf("write output: %w", err), len(chunks))
+	}
+
+	return total, nil
+}
+
+// translateChunk translates a single chunk to stdout, without a trailing
+// newline of its own — translateChunks reprints the chunk's original
+// separator afterward instead. A chunk with no letters (a block of numbers, a
+// divider line) needs no translation and is printed unchanged.
+func translateChunk(ctx context.Context, t llm.Completer, c chunk, sourceLang, targetLang string) (llm.Usage, error) {
+	if isLangNeutral(c.text) {
+		trim := newNewlineTrimWriter(os.Stdout)
+		if _, err := trim.Write([]byte(c.text)); err != nil {
+			return llm.Usage{}, fmt.Errorf("write output: %w", err)
+		}
+
+		trim.Done()
+
+		return llm.Usage{}, nil
+	}
+
+	system, user, nonce := buildRewritePrompt(sourceLang, targetLang, c.text)
+
+	// Every provider guarantees its stream ends with a newline, and a chatty
+	// model may add more of its own; trim that trailing run rather than
+	// assuming its size, since the chunk's real separator is reprinted by the
+	// caller instead.
+	trim := newNewlineTrimWriter(os.Stdout)
+
+	// Weaker models occasionally echo the nonce delimiter back into the
+	// output. Filter it out before it reaches the user — the nonce is our own
+	// injected format noise and must never be visible.
+	out := newNonceFilter(trim, nonce)
+
+	usage, err := t.Complete(ctx, system, user, out)
+	if err != nil {
+		return usage, fmt.Errorf("translation failed: %w", err)
+	}
+
+	if err := out.Flush(); err != nil {
+		return usage, fmt.Errorf("write output: %w", err)
+	}
+
+	trim.Done()
+
+	return usage, nil
 }
 
 // detectLanguage detects the language of the input text.
