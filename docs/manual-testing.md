@@ -295,6 +295,14 @@ mint -t zh-TW -v < /tmp/long.txt
 # ... three translated paragraphs, separated by blank lines
 ```
 
+> **Against a real model** (not a mock), prefer a varied-content document over the
+> repeated-phrase one above — e.g. `testdata/sample.txt` duplicated once
+> (`cat testdata/sample.txt testdata/sample.txt`). A single phrase repeated dozens of
+> times is degenerate input that can send some models (observed: `gpt-4o-mini`,
+> `llama3.1:8b`) into a runaway repetition loop, producing a chunk many times longer
+> than the input and taking minutes instead of seconds — a model quirk, not a chunking
+> bug, but it can look like a hang during manual testing.
+
 In rotation mode, language detection samples the first chunk that contains letters
 (falling back to the first chunk if none do), so detection cost does not grow with
 document length. If that sample comes back language-neutral, a single-chunk document is
