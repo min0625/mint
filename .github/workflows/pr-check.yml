@@ -42,6 +42,13 @@ jobs:
           key: golangci-lint-${{ runner.os }}-${{ hashFiles('mise.toml', '.golangci.yaml') }}
           restore-keys: golangci-lint-${{ runner.os }}-
 
+      - name: Cache prek hook environments
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/prek
+          key: prek-${{ runner.os }}-${{ hashFiles('mise.toml', '.pre-commit-config.yaml') }}
+          restore-keys: prek-${{ runner.os }}-
+
       - name: Download Go dependencies
         run: go mod download
 

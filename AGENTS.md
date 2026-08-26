@@ -19,17 +19,25 @@ go install github.com/min0625/mint/cmd/mint@latest   # Go 1.26.4+; binary → $G
 
 ```bash
 make build        # compile → bin/mint (CGO_ENABLED=0, trimpath, ldflags injected)
-make test         # go test -race -failfast ./...
+make test         # go test -race -failfast ./... (use this to watch output; prek buffers it)
 make lint         # golangci-lint (only new violations since HEAD)
 make fix          # golangci-lint --fix + go mod tidy
-make check        # check-tidy + lint + test (CI gate)
+make check        # every prek hook over all tracked files (CI gate); may rewrite
+                  #   files -- the formatting fixer hooks run here too
 make check-tidy   # verify go.mod/go.sum are tidy
 make release-snapshot  # goreleaser release --snapshot --clean (test release locally)
 ```
 
 Tool versions are pinned in [mise.toml](./mise.toml) (Go 1.26.4, golangci-lint 2.12.2, goreleaser 2.16.0, prek 0.4.6).
-Run `mise install` to set up the exact toolchain. Pre-commit hooks run `make check` via
-`prek` (config: [.pre-commit-config.yaml](./.pre-commit-config.yaml)).
+Run `mise install` to set up the exact toolchain. [.pre-commit-config.yaml](./.pre-commit-config.yaml)
+is the single source of truth for what gets checked: `prek` runs it on `git commit` (staged files),
+and `make check` runs the same hooks over **all** tracked files, which is what CI runs. `check-tidy`,
+`lint` and `test` are hooks in there too — `make check` must never be used as a hook entry, since it
+runs prek and would recurse. The hygiene checks come from `repo: builtin` — prek's own Rust
+implementations, versioned with prek itself rather than a `rev:` pin, and unreadable by upstream
+`pre-commit`. The `gitleaks` hook only scans *staged* changes, so it is a no-op in CI by design —
+a local commit-time guard, not a CI secret scan — GitHub secret scanning push
+protection is the server-side net.
 
 ## Distribution
 
@@ -94,7 +102,11 @@ bin/mint                             # compiled binary (gitignored)
 - **Pipe-friendly** — translation input via args or stdin; results to stdout; errors to stderr.
 - **Unix philosophy** — do one thing well; composable with `grep`, `sed`, `xargs`, etc.
 - **No unnecessary dependencies** — keep `go.mod` minimal.
-- Lint is checked only for *new* violations (`--new-from-rev=HEAD`); always run `make lint` before committing.
+- Lint is checked only for *new* violations (`--new-from-rev=$(NEW_FROM_REV)`, default `HEAD`; CI passes
+  the PR base branch). `make lint` and `make fix` hard-fail if that revision does not resolve (shared
+  `check-rev` guard) — `golangci-lint` itself only warns and exits 0, which would let CI pass having
+  linted nothing. The pre-commit hook already runs
+  lint on every commit, so running it by hand is only needed to re-check a different rev.
 - **Release workflow** — push a tag matching `v*.*.*` to automatically trigger GoReleaser CI; creates GitHub Release with multi-platform binaries.
 - **Local snapshot testing** — run `goreleaser release --snapshot --clean` to validate build configuration before publishing.
 
