@@ -28,7 +28,7 @@ make check-tidy   # verify go.mod/go.sum are tidy
 make release-snapshot  # goreleaser release --snapshot --clean (test release locally)
 ```
 
-Tool versions are pinned in [mise.toml](./mise.toml) (Go 1.26.4, golangci-lint 2.12.2, goreleaser 2.16.0, prek 0.4.6).
+Tool versions are pinned in [mise.toml](./mise.toml) (Go 1.26.4, golangci-lint 2.13.1, goreleaser 2.16.0, prek 0.4.6).
 Run `mise install` to set up the exact toolchain. [.pre-commit-config.yaml](./.pre-commit-config.yaml)
 is the single source of truth for what gets checked: `prek` runs it on `git commit` (staged files),
 and `make check` runs the same hooks over **all** tracked files, which is what CI runs. `check-tidy`,
@@ -107,6 +107,11 @@ bin/mint                             # compiled binary (gitignored)
   `check-rev` guard) — `golangci-lint` itself only warns and exits 0, which would let CI pass having
   linted nothing. The pre-commit hook already runs
   lint on every commit, so running it by hand is only needed to re-check a different rev.
+- Lint config changes do not require fixing the whole codebase. `whole-files: true` +
+  `--new-from-rev` is a ratchet: a PR fixes the lint of the files it touches, and untouched
+  files carry their debt until someone edits them. After changing `.golangci.yaml`, run
+  `golangci-lint run ./...` once (no `--new-from-rev`) to see how much debt the change adds
+  repo-wide — read the number, don't fix it.
 - **Release workflow** — push a tag matching `v*.*.*` to automatically trigger GoReleaser CI; creates GitHub Release with multi-platform binaries.
 - **Local snapshot testing** — run `goreleaser release --snapshot --clean` to validate build configuration before publishing.
 
