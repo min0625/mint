@@ -21,7 +21,7 @@ go install github.com/min0625/mint/cmd/mint@latest   # Go 1.26.4+; binary → $G
 make build        # compile → bin/mint (CGO_ENABLED=0, trimpath, ldflags injected)
 make test         # go test -race -failfast ./... (use this to watch output; prek buffers it)
 make lint         # golangci-lint (only new violations since HEAD)
-make fix          # golangci-lint --fix + go mod tidy
+make fix          # go mod tidy, golangci-lint --fix, tidy again, then re-runs lint
 make check        # every prek hook over all tracked files (CI gate); may rewrite
                   #   files -- the formatting fixer hooks run here too
 make check-tidy   # verify go.mod/go.sum are tidy
@@ -104,14 +104,19 @@ bin/mint                             # compiled binary (gitignored)
 - **No unnecessary dependencies** — keep `go.mod` minimal.
 - Lint is checked only for *new* violations (`--new-from-rev=$(NEW_FROM_REV)`, default `HEAD`; CI passes
   the PR base branch). `make lint` and `make fix` hard-fail if that revision does not resolve (shared
-  `check-rev` guard) — `golangci-lint` itself only warns and exits 0, which would let CI pass having
-  linted nothing. The pre-commit hook already runs
+  `check-rev` guard). `golangci-lint` itself fails closed there — it warns, reports every issue in the
+  repo, and exits 1 — so the guard buys a readable error, not safety. The pre-commit hook already runs
   lint on every commit, so running it by hand is only needed to re-check a different rev.
 - Lint config changes do not require fixing the whole codebase. `whole-files: true` +
   `--new-from-rev` is a ratchet: a PR fixes the lint of the files it touches, and untouched
   files carry their debt until someone edits them. After changing `.golangci.yaml`, run
   `golangci-lint run ./...` once (no `--new-from-rev`) to see how much debt the change adds
-  repo-wide — read the number, don't fix it.
+  repo-wide — read the number, don't fix it. Formatter findings are the exception: apply
+  `golangci-lint fmt ./...` repo-wide, since a half-formatted tree contradicts its own config.
+- `.golangci.yaml` is not self-contained. `whole-files: true` needs one of the `--new*` modes and
+  is silently inert without one, so copying the file into another repo without the `--new-from-rev`
+  harness means the whole backlog lands at once — measured at 40–184 issues/KLOC on third-party
+  Go. Port the Makefile targets with it, or expect to start from a clean tree.
 - **Release workflow** — push a tag matching `v*.*.*` to automatically trigger GoReleaser CI; creates GitHub Release with multi-platform binaries.
 - **Local snapshot testing** — run `goreleaser release --snapshot --clean` to validate build configuration before publishing.
 

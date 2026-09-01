@@ -2,31 +2,30 @@
 version: "2"
 
 issues:
-  whole-files: true
-
-  max-same-issues: 0       # 0 = unlimited; default 3
   max-issues-per-linter: 0 # 0 = unlimited; default 50
-
+  max-same-issues: 0       # 0 = unlimited; default 3
   uniq-by-line: false      # default true hides other linters' findings on the same line
+  whole-files: true        # needs one of the --new* modes
 
 formatters:
   enable:
-    # goimports rides along with gofumpt because it alone drops unused imports.
-    - gofumpt
-    - goimports
-    - golines
+    - gci       # regroups imports
+    - gofumpt   # stricter gofmt
+    - goimports # adds and removes imports
+    - golines   # wraps long lines
 
   settings:
     gofumpt:
       extra:
-        group-params: true
-        clothe-returns: true
-        balance-calls: true
+        group-params: true   # func(a, b string), not func(a string, b string)
+        clothe-returns: true # naked `return` -> `return err`
+        balance-calls: true  # a call broken after `(` also breaks before `)`
+
     golines:
-      max-len: 120
+      max-len: 120 # default 100
 
 linters:
-  default: none
+  default: none # upgrades never add a linter silently
   enable:
     # Standard
     - errcheck
@@ -36,9 +35,9 @@ linters:
     - unused
 
     # Additional
+    - bidichk
     - bodyclose
     - canonicalheader
-    - depguard
     - durationcheck
     - errchkjson
     - errname
@@ -49,10 +48,12 @@ linters:
     - gocognit
     - goconst
     - gocritic
+    - gomoddirectives # forbids every replace; one reaching main breaks the tagged release build
     - gomodguard_v2
     - goprintffuncname
     - gosec
     - loggercheck
+    - makezero
     - mirror
     - misspell
     - modernize
@@ -68,6 +69,7 @@ linters:
     - perfsprint
     - prealloc
     - promlinter
+    - reassign
     - recvcheck
     - revive
     - rowserrcheck
@@ -85,32 +87,10 @@ linters:
     - wsl_v5
 
   settings:
-    govet:
-      enable:
-        - deepequalerrors
-        - nilness
-        - reflectvaluecompare
-        - sortslice
-        - unusedwrite
-
-    nolintlint:
-      require-specific: true
-      require-explanation: true
-
-    depguard:
-      rules:
-        main:
-          deny:
-            - pkg: github.com/pkg/errors
-              desc: Should be replaced by standard lib errors package
+    errcheck:
+      check-type-assertions: true
 
     gomodguard_v2:
-      # A local `replace` that reaches main breaks the tagged release build.
-      # Only sees directly imported modules; an indirect dep's replace slips through.
-      local-replace-directives: true
-
-      # Bar for an entry: archived or known-vulnerable, AND still reached for
-      # directly today because old tutorials point there.
       blocked:
         - module: github.com/Azure/azure-sdk-for-go
           reason: Track 1 (services/, storage/, profiles/) retired 2023-09-30; use the sdk/ modules (track 2)
@@ -126,13 +106,64 @@ linters:
           recommendations:
             - go.uber.org/mock
           reason: Archived upstream; go.uber.org/mock is the maintained fork
+        - module: github.com/mitchellh/mapstructure
+          recommendations:
+            - github.com/go-viper/mapstructure/v2
+          reason: Archived upstream; go-viper is the maintained fork, already pulled in by viper
+        - module: github.com/pkg/errors
+          reason: No substantive commit since 2020; stdlib error wrapping (fmt.Errorf, errors.Is/As) covers it
         - module: github.com/satori/go.uuid
           recommendations:
             - github.com/google/uuid
-          reason: Unmaintained; on Go 1.27+ prefer the stdlib uuid package
+          reason: No commit since 2018; migrate to google/uuid (stdlib uuid on Go 1.27+)
+        - module: gopkg.in/yaml
+          match-type: prefix # .v1/.v2/.v3 in one entry
+          recommendations:
+            - go.yaml.in/yaml/v2
+            - go.yaml.in/yaml/v3
+          reason: go-yaml/yaml archived 2025-04-01; go.yaml.in is the YAML org's maintained fork -- keep the major version, v2 and v3 are not API-compatible
+
+    gosec:
+      # Bare call statements only (never defer/go) plus a whitelist, so a strict subset
+      # of errcheck, which also names the function -- and uniq-by-line: false prints both.
+      # Breaks if errcheck is narrowed with exclude-functions or std-error-handling.
+      excludes:
+        - G104
+
+    govet:
+      # Additive, not a replacement. enable-all would drag in fieldalignment and shadow.
+      enable:
+        - deepequalerrors
+        - nilness
+        - reflectvaluecompare
+        - sortslice
+        - unusedwrite
+
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
+    perfsprint:
+      # On `s += x` this and modernize both fire and golangci-lint takes perfsprint's
+      # fix, which invents `sSb7` instead of reusing the variable. Off, `s = s + x`
+      # falls to gocritic's assignOp -- no autofix, so the Builder lands a round later.
+      concat-loop: false
+
+    prealloc:
+      # Default is range loops only. modernize converts the plain 3-clause form to range,
+      # but never `i += 2`, `i--`, or a non-zero start -- this is their only check.
+      for-loops: true
+
+    reassign:
+      # Upstream's recommendation; the default covers only EOF and Err*, leaving os.Args
+      # and http.DefaultClient open. Whole-variable writes only -- `.Timeout = x` slips
+      # through -- and package-var config APIs (cobra.EnableCommandSorting) need a nolint.
+      patterns:
+        - ".*"
 
   exclusions:
     rules:
       - path: _test\.go
         linters:
-          - goconst
+          - goconst # repeated literals are normal in table-driven tests
+          - reassign # tests borrow os.Stdin/os.Args and restore them afterwards
